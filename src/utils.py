@@ -1,3 +1,5 @@
+import pickle
+
 """
     Utililty files 
 
@@ -5,6 +7,16 @@
      Zihan Liu <leoliu00529@gmail.com>
 """
 
+def load_pickle(path):
+    """ load pickle object from file """
+    with open(path, "rb") as fin:
+        return pickle.load(fin)
+
+
+def dump_pickle(path, obj):
+    """ dump object to pickle file """
+    with open(path, "wb") as fout:
+        pickle.dump(obj, fout)
 
 class InstanceFeatures:
     def __init__(self,
