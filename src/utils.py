@@ -95,3 +95,20 @@ class Embeddings:
 
     def get_embedding_without_word_piece(self):
         return self.embedding_without_word_piece
+
+
+def build_token_to_orig_map(tokens):
+    token_indices = list(range(1, len(tokens) - 1))
+    tok2orig_list = []
+    for i in token_indices:
+        if i == 1:
+            tok2orig_list.append(0)
+        else:
+            if len(tokens[i]) > 2 and tokens[i][0:2] == "##":
+                tok2orig_list.append(tok2orig_list[-1])
+            else:
+                tok2orig_list.append(tok2orig_list[-1] + 1)
+    
+    assert len(token_indices) == len(tok2orig_list), "Unequal lengths!"
+    token_to_orig_map = dict(zip(token_indices, tok2orig_list))
+    return token_to_orig_map

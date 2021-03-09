@@ -11,10 +11,10 @@
 import csv
 import torch
 import argparse
-from utils import InstanceFeatures, Embeddings
 from transformers import BertTokenizer, BertModel
 
-from utils import dump_pickle
+from utils import InstanceFeatures, Embeddings
+from utils import dump_pickle, build_token_to_orig_map
 
 DATA_DIR = "./data/"
 
@@ -26,8 +26,7 @@ def preprocess_bert_tokenizer(file_path):
     all_instance_features = []
 
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
-
-    max_ = 0
+    label2id = {"BETTER": 0, "WORSE": 1, "NONE": 2}
 
     with open(file_path, 'r') as f:
         reader = csv.DictReader(f)
@@ -45,53 +44,22 @@ def preprocess_bert_tokenizer(file_path):
             # keep the special tokens inside the `tokens`
             tokens = tokenizer.convert_ids_to_tokens(index_tokens)
             sentence_from_tokens = tokenizer.convert_tokens_to_string(tokens)
-
-            if max_ != 10:
-                max_ += 1
-            else:
-                break
-
             print(sentence_from_tokens)
 
-            token_to_orig_map_list = []
-            token_to_orig_map = {}
-
-            # ranging from 1 to len(tokens)-1
-            token_indices = list(range(1, len(tokens) - 1))
-            for i in token_indices:
-                if i == 1:
-                    token_to_orig_map_list.append(0)
-                else:
-                    if len(tokens[i]) > 2 and tokens[i][0:2] == "##":
-                        token_to_orig_map_list.append(token_to_orig_map_list[-1])
-                    else:
-                        token_to_orig_map_list.append(token_to_orig_map_list[-1] + 1)
-            
-            assert len(token_indices) == len(token_to_orig_map_list), "Unequal lengths!"
-            token_to_orig_map = dict(zip(token_indices, token_to_orig_map_list))
-
-            label_id = -1
-
-            if label == "BETTER":
-                label_id = 0
-            elif label == "WORSE":
-                label_id = 1
-            else:
-                label_id = 2
+            token_to_orig_map = build_token_to_orig_map(tokens)
+            label_id = label2id[label]
 
             # TODO: 
             #   1. add dep parsing graph
             #   2. add glove embedding indices
             all_instance_features.append(
                 InstanceFeatures(tokens, index_tokens, mask, label, 
-                                 label_id, token_to_orig_map, sentence_from_tokens, 
-                                 None))
+                label_id, token_to_orig_map, sentence_from_tokens, None))
 
     return all_instance_features
 
 
 def preprocess_embedding(bert, instance_feature):
-
 
     # do not run the back propagation.
     with torch.no_grad():
