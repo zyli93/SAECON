@@ -1,4 +1,5 @@
 import pickle
+from torch.nn import ConstantPad2d
 
 """
     Utililty files 
@@ -112,3 +113,25 @@ def build_token_to_orig_map(tokens):
     assert len(token_indices) == len(tok2orig_list), "Unequal lengths!"
     token_to_orig_map = dict(zip(token_indices, tok2orig_list))
     return token_to_orig_map
+
+
+# This method takes a list of pytorch tensor and returns a list of padded tensors and the mex_length
+# Ex: [[53, 768], [12, 768]] -> [[53, 768], [53, 768]], 53
+
+def dynamic_padding(tensor_list):
+
+    padded_list = []
+    max_length = 0
+
+    for each_tensor in tensor_list:
+
+        if each_tensor.shape[0] > max_length:
+            max_length = each_tensor.shape[0]
+
+    for each_tensor in tensor_list:
+        padding = ConstantPad2d((0, 0, 0, max_length - each_tensor.shape[0]), 0)
+
+        padded_list.append(padding(each_tensor))
+
+    return padded_list, max_length
+
