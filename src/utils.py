@@ -1,10 +1,16 @@
 import pickle
 
+import torch
+import numpy as np
+from scipy.sparse import coo_matrix
+from sklearn.preprocessing import normalize
+
 """
-    Utililty files 
+    Utililty files for SAECC
 
     Authors:
-     Zihan Liu <leoliu00529@gmail.com>
+        Zeyu Li <zyli@cs.ucla.edu>
+        Zihan Liu <leoliu00529@gmail.com>
 """
 
 def load_pickle(path):
@@ -112,3 +118,27 @@ def build_token_to_orig_map(tokens):
     assert len(token_indices) == len(tok2orig_list), "Unequal lengths!"
     token_to_orig_map = dict(zip(token_indices, tok2orig_list))
     return token_to_orig_map
+
+
+def wordpiece2word(emb, wp2wd, wd_size):
+    """Convert word piece embedding to word embedding
+
+    Args:
+        emb - [torch.Tensor] (wp_size, emb_dim) embedding matrix of wordpiece
+        wp2wd - wordpiece to word mapping, "token2orig_map"
+        wp_size - the number of wordpieces in the `emb` matrix INCLUDING padding dims
+        wp_emb_dim - the embedding dimension of `emb`
+        wd_size - the size of target words
+    
+    Return:
+        norm_mask^T \dot emb in shape of (wd_size, emb_dim)
+    """
+    wp_size, _= emb.shape[0], emb.shape[1]
+
+    coord_row, coord_col = zip(*wp2wd.items())
+    data = np.ones(len(coord_row), dtype=np.float32)
+    mask = coo_matrix((data, (coord_row, coord_col)), shape=(wp_size, wd_size)).toarray()
+    norm_mask = normalize(mask, norm="l1", axis=0)  # (wp_size * wd_size)
+    norm_mask = torch.from_numpy(norm_mask)
+
+    return torch.mm(norm_mask.t(), emb)

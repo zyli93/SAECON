@@ -1,1 +1,5 @@
 transformers
+pickle
+scipy
+scikit-learn
+torch
