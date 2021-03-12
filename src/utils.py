@@ -1,5 +1,6 @@
 import os
 import pickle
+from torch.nn import ConstantPad2d
 
 import torch
 import numpy as np
@@ -165,4 +166,25 @@ def wordpiece2word(emb, wp2wd, wd_size):
     norm_mask = normalize(mask, norm="l1", axis=0)  # (wp_size * wd_size)
     norm_mask = torch.from_numpy(norm_mask)
 
+
     return torch.mm(norm_mask.t(), emb)
+  
+# This method takes a list of pytorch tensor and returns a list of padded tensors and the mex_length
+# Ex: [[53, 768], [12, 768]] -> [[53, 768], [53, 768]], 53
+
+def dynamic_padding(tensor_list):
+
+    padded_list = []
+    max_length = 0
+
+    for each_tensor in tensor_list:
+
+        if each_tensor.shape[0] > max_length:
+            max_length = each_tensor.shape[0]
+
+    for each_tensor in tensor_list:
+        padding = ConstantPad2d((0, 0, 0, max_length - each_tensor.shape[0]), 0)
+
+        padded_list.append(padding(each_tensor))
+
+    return padded_list, max_length

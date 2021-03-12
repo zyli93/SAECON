@@ -14,7 +14,7 @@ import argparse
 from transformers import BertTokenizer, BertModel
 
 from utils import InstanceFeatures, Embeddings
-from utils import dump_pickle, build_token_to_orig_map
+from utils import dump_pickle, build_token_to_orig_map, dynamic_padding
 
 DATA_DIR = "./data/"
 
@@ -75,7 +75,7 @@ def preprocess_embedding(bert, instance_feature):
         # squeeze the tensor to remove the batch
         embedding = torch.squeeze(embedding, dim=0)
 
-        tokenized_sentence = ["[CLS]"] + instance_feature.get_tokens() + ["[SEP]"]
+        tokenized_sentence = instance_feature.get_tokens()
 
         token_no_wordpiece = []
         embedding_no_wordpiece = []
@@ -146,6 +146,28 @@ if __name__ == "__main__":
 
         print(embedding.get_embedding().size())
         print(embedding.get_embedding_without_word_piece().size())
+
+        emb_list = []
+
+        for i in range(0, 10):
+            emb_list.append(preprocess_embedding(bert, all_instance[i]).get_embedding())
+
+        padded_list, max_length = dynamic_padding(emb_list)
+
+        for each in padded_list:
+            print(each.size())
+
+        for i, each in enumerate(padded_list):
+            print(each.shape[0])
+            original_length = emb_list[i].shape[0]
+
+            print(torch.all(torch.eq(each[:original_length, :], emb_list[i][:, :])))
+            print(torch.all(torch.eq(each[original_length: , :], torch.zeros([max_length - original_length, 768]))))
+
+
+
+
+
 
 
 
