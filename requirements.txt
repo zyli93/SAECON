@@ -3,3 +3,5 @@ pickle
 scipy
 scikit-learn
 torch
+
+pytorch-revgrad

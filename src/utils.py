@@ -1,7 +1,9 @@
+import os
 import pickle
 
 import torch
 import numpy as np
+from datetime import datetime
 from scipy.sparse import coo_matrix
 from sklearn.preprocessing import normalize
 
@@ -9,9 +11,12 @@ from sklearn.preprocessing import normalize
     Utililty files for SAECC
 
     Authors:
-        Zeyu Li <zyli@cs.ucla.edu>
-        Zihan Liu <leoliu00529@gmail.com>
+        Anon <anon@anon.anon>
 """
+
+DATA_DIR = "./data/"
+LOG_DIR = "./log/"
+CKPT_DIR = "./ckpt/"
 
 def load_pickle(path):
     """ load pickle object from file """
@@ -23,6 +28,25 @@ def dump_pickle(path, obj):
     """ dump object to pickle file """
     with open(path, "wb") as fout:
         pickle.dump(obj, fout)
+
+def make_dir(path):
+    """helper for making dir"""
+    if not os.path.exists(path):
+        os.makedirs(path, exist_ok=True)
+
+def get_time():
+    time = datetime.now().isoformat()[5:24]
+    return time
+
+def print_args(args):
+    not_print = set([])
+    print("\n"+"="*70)
+    print("\t Argument Settings")
+    for arg in vars(args):
+        if arg not in not_print:
+            print("\t" + arg + " : " + str(getattr(args, arg)))
+    print("="* 70 + "\n")
+
 
 class InstanceFeatures:
     def __init__(self,

@@ -132,3 +132,5 @@ dmypy.json
 notebooks/.ipynb_checkpoints/*
 .vscode/*
 .DS_store
+
+authors
