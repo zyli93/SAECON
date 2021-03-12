@@ -116,6 +116,9 @@ def preprocess_embedding(bert, instance_feature):
         return Embeddings(embedding, torch.stack(embedding_no_wordpiece))
 
 
+def preprocess_absa(file_path):
+
+
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
@@ -125,6 +128,7 @@ if __name__ == "__main__":
         default="bert-base-uncased", help="The version of BERT.")
     args = parser.parse_args()
 
+    # preprocess cpc
     all_instance = preprocess_bert_tokenizer(DATA_DIR + "data.csv")
 
     print("[preprocess] dumping processed instances to {}.".format(args.output_path))

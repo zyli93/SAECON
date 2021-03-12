@@ -1,12 +1,23 @@
+import os
 import pickle
 from torch.nn import ConstantPad2d
 
+import torch
+import numpy as np
+from datetime import datetime
+from scipy.sparse import coo_matrix
+from sklearn.preprocessing import normalize
+
 """
-    Utililty files 
+    Utililty files for SAECC
 
     Authors:
-     Zihan Liu <leoliu00529@gmail.com>
+        Anon <anon@anon.anon>
 """
+
+DATA_DIR = "./data/"
+LOG_DIR = "./log/"
+CKPT_DIR = "./ckpt/"
 
 def load_pickle(path):
     """ load pickle object from file """
@@ -18,6 +29,25 @@ def dump_pickle(path, obj):
     """ dump object to pickle file """
     with open(path, "wb") as fout:
         pickle.dump(obj, fout)
+
+def make_dir(path):
+    """helper for making dir"""
+    if not os.path.exists(path):
+        os.makedirs(path, exist_ok=True)
+
+def get_time():
+    time = datetime.now().isoformat()[5:24]
+    return time
+
+def print_args(args):
+    not_print = set([])
+    print("\n"+"="*70)
+    print("\t Argument Settings")
+    for arg in vars(args):
+        if arg not in not_print:
+            print("\t" + arg + " : " + str(getattr(args, arg)))
+    print("="* 70 + "\n")
+
 
 class InstanceFeatures:
     def __init__(self,
@@ -115,6 +145,30 @@ def build_token_to_orig_map(tokens):
     return token_to_orig_map
 
 
+def wordpiece2word(emb, wp2wd, wd_size):
+    """Convert word piece embedding to word embedding
+
+    Args:
+        emb - [torch.Tensor] (wp_size, emb_dim) embedding matrix of wordpiece
+        wp2wd - wordpiece to word mapping, "token2orig_map"
+        wp_size - the number of wordpieces in the `emb` matrix INCLUDING padding dims
+        wp_emb_dim - the embedding dimension of `emb`
+        wd_size - the size of target words
+    
+    Return:
+        norm_mask^T \dot emb in shape of (wd_size, emb_dim)
+    """
+    wp_size, _= emb.shape[0], emb.shape[1]
+
+    coord_row, coord_col = zip(*wp2wd.items())
+    data = np.ones(len(coord_row), dtype=np.float32)
+    mask = coo_matrix((data, (coord_row, coord_col)), shape=(wp_size, wd_size)).toarray()
+    norm_mask = normalize(mask, norm="l1", axis=0)  # (wp_size * wd_size)
+    norm_mask = torch.from_numpy(norm_mask)
+
+
+    return torch.mm(norm_mask.t(), emb)
+  
 # This method takes a list of pytorch tensor and returns a list of padded tensors and the mex_length
 # Ex: [[53, 768], [12, 768]] -> [[53, 768], [53, 768]], 53
 
@@ -134,4 +188,3 @@ def dynamic_padding(tensor_list):
         padded_list.append(padding(each_tensor))
 
     return padded_list, max_length
-
