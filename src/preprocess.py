@@ -229,6 +229,7 @@ if __name__ == "__main__":
         print("[preprocess] gpu resource unavailable, using cpu")
 
 
+    # whether to re-process CPC/ABSA data from raw input files
     if args.process_instances:
         # preprocess cpc
         print("[preprocess] processing cpc data ...")
