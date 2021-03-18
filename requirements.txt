@@ -1,7 +1,8 @@
 transformers
-pickle
 scipy
 scikit-learn
 torch
+seaborn
 
 pytorch-revgrad
+gensim
