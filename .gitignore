@@ -134,6 +134,8 @@ notebooks/.ipynb_checkpoints/*
 .DS_store
 
 authors
-./data/glove
-./data/old
-./data/*.pkl
+data/glove
+data/old
+data/*.pkl
+related_works/
+core

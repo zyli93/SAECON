@@ -18,7 +18,8 @@ import torch
 from transformers import BertTokenizer, BertModel
 
 from utils import InstanceFeatures, Embeddings
-from utils import dump_pickle, build_token_to_orig_map, dynamic_padding
+from utils import dump_pickle, load_pickle
+from utils import build_token_to_orig_map, dynamic_padding
 from utils import wordpiece2word
 
 from parsers import semeval_14, semeval_15_16
@@ -91,24 +92,33 @@ def preprocess_cpc(file_path, bert_version):
     return cpc_data_features
 
 
-def preprocess_bert_embedding(instance_features, bert):
+def preprocess_bert_embedding(instance_features, bert, use_gpu):
     all_wordlevel_emb = {}
 
     # do not run the back propagation.
     with torch.no_grad():
-        for idx, ins in enumerate(instance_features):
-            assert idx == ins.get_sample_id, "[BERT] idx does NOT match sample ID"
+        for idx, ins in tqdm(enumerate(instance_features)):
+            assert idx == ins.get_sample_id(), "[BERT] idx does NOT match sample ID"
             # convert python lists to torch tensors
             tokens_tensor = torch.tensor([ins.get_token_ids()])
             mask_tensors = torch.tensor([ins.get_token_mask()])
+            if use_gpu:
+                tokens_tensor = tokens_tensor.cuda()
+                mask_tensors = mask_tensors.cuda()
+
             output = bert(tokens_tensor, mask_tensors)
             wp_emb = output.last_hidden_state
 
             # squeeze the tensor to remove the batch
             wp_emb = torch.squeeze(wp_emb, dim=0)  # (token_len, dim)
-            wd_emb = wordpiece2word(wp_emb, ins.get_token_to_orig_map())
+            wd_emb = wordpiece2word(wp_emb, ins.get_token_to_orig_map(), use_gpu)
 
             all_wordlevel_emb[idx] = wd_emb
+        
+    if use_gpu:
+        """convert gpu tensors to cpu"""
+        for emb_mat in all_wordlevel_emb.values():
+            emb_mat = emb_mat.cpu()
 
     return all_wordlevel_emb
 
@@ -122,8 +132,8 @@ def preprocess_glove_embedding(instance_features, model):
         return word_embedding
 
     all_wordlevel_emb_glove = {}
-    for idx, ins in enumerate(instance_features):
-        assert idx == ins.sampled_id, "[GLOVE] idx does NOT match sample ID"
+    for idx, ins in tqdm(enumerate(instance_features)):
+        assert idx == ins.get_sample_id(), "[GLOVE] idx does NOT match sample ID"
         wd_tokens = nltk.word_tokenize(ins.sentence)
         wd_emb = torch.tensor([
             get_embedding(wd) for wd in wd_tokens], dtype=torch.float)
@@ -188,31 +198,62 @@ def preprocess_depgraph(instance_features):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
+
+    parser.add_argument("--gpu_id", type=int, default=-1, required=True)
+
+    parser.add_argument("--process_instances", action="store_true", default=False,
+        help="Whether to process CPC/ABSA data from their raw data files.") 
+
     parser.add_argument("--generate_bert_emb", action="store_true", default=False)
     parser.add_argument("--bert_version", type=str, required=False,
         default="bert-base-uncased", help="The version of BERT.")
 
     parser.add_argument("--generate_glove_emb", action="store_true", default=False)
-    parser.add_argument("--glove_dimension", type=int, required=False)
+    parser.add_argument("--glove_dimension", type=int, required=False,
+        default=100, help="The dimensions of GloVe.")
 
     parser.add_argument("--generate_dep_graph", action="store_true", default=False)
 
     args = parser.parse_args()
 
-    # preprocess cpc
-    print("[preprocess] processing cpc data ...")
-    cpc_trn_data = preprocess_cpc(DATA_DIR + "data.csv", args.bert_version)
-    cpc_tst_data = preprocess_cpc(DATA_DIR + "hold_out.csv", args.bert_version)
+    # set up gpu for preprocessing
+    use_gpu = False
+    if args.gpu_id >= 0 and torch.cuda.device_count() > 0:
+        use_gpu = True
+        assert torch.cuda.device_count() > args.gpu_id
+        torch.cuda.set_device("cuda:"+str(args.gpu_id))
+        print("[preprocess] using GPU for processing ...")
+    elif args.gpu_id < 0 and torch.cuda.device_count() > 0:
+        print("[preprocess] gpu_id is set < 0, using cpu")
+    else:
+        print("[preprocess] gpu resource unavailable, using cpu")
 
-    # preprocess absa
-    print("[preprocess] processing absa data ...")
-    absa_data = preprocess_absa()
 
-    # dump data
-    print("[preprocess] dumping processed cpc/absa instances to {}.".format(DATA_DIR))
-    dump_pickle(DATA_DIR+"processed_cpc_train.pkl", cpc_trn_data)
-    dump_pickle(DATA_DIR+"processed_cpc_test.pkl", cpc_tst_data)
-    dump_pickle(DATA_DIR+"processed_absa.pkl", absa_data)
+    if args.process_instances:
+        # preprocess cpc
+        print("[preprocess] processing cpc data ...")
+        cpc_trn_data = preprocess_cpc(DATA_DIR + "data.csv", args.bert_version)
+        cpc_tst_data = preprocess_cpc(DATA_DIR + "held-out-data.csv", args.bert_version)
+
+        # preprocess absa
+        print("[preprocess] processing absa data ...")
+        absa_data = preprocess_absa()
+
+        # dump data
+        print("[preprocess] dumping processed cpc/absa instances to {}.".format(DATA_DIR))
+        dump_pickle(DATA_DIR+"processed_cpc_train.pkl", cpc_trn_data)
+        dump_pickle(DATA_DIR+"processed_cpc_test.pkl", cpc_tst_data)
+        dump_pickle(DATA_DIR+"processed_absa.pkl", absa_data)
+    else:
+        print("[preprocess] loading cpc_trn/cpc_tst/absa data ...")
+        cpc_trn_data = load_pickle(DATA_DIR+"processed_cpc_train.pkl")
+        cpc_tst_data = load_pickle(DATA_DIR+"processed_cpc_test.pkl")
+        absa_data    = load_pickle(DATA_DIR+"processed_absa.pkl")
+    
+    # print cpc/absa statistics
+    print("[preprocess] statistics:")
+    print("\t# CPC Train:{}, CPC Test:{}, ABSA:{}".format(
+        len(cpc_trn_data), len(cpc_tst_data), len(absa_data)))
 
     # generate bert embedding 
     if args.generate_bert_emb:
@@ -221,14 +262,17 @@ if __name__ == "__main__":
         bert = BertModel.from_pretrained(args.bert_version, output_hidden_states=True)
         bert.eval()
 
+        if use_gpu:
+            bert = bert.cuda()
+
         print("\t\t CPC data ...")
-        cpc_trn_bert_emb = preprocess_bert_embedding(cpc_trn_data, bert)
-        cpc_tst_bert_emb = preprocess_bert_embedding(cpc_tst_data, bert)
+        cpc_trn_bert_emb = preprocess_bert_embedding(cpc_trn_data, bert, use_gpu)
+        cpc_tst_bert_emb = preprocess_bert_embedding(cpc_tst_data, bert, use_gpu)
         dump_pickle(DATA_DIR+"cpc_train_bert_emb.pkl", cpc_trn_bert_emb)
         dump_pickle(DATA_DIR+"cpc_test_bert_emb.pkl", cpc_tst_bert_emb)
 
         print("\t\t ABSA data ...")
-        absa_bert_emb = preprocess_bert_embedding(absa_data, bert)
+        absa_bert_emb = preprocess_bert_embedding(absa_data, bert, use_gpu)
         dump_pickle(DATA_DIR+"absa_bert_emb.pkl", absa_bert_emb)
 
     if args.generate_glove_emb:

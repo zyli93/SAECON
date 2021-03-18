@@ -168,7 +168,7 @@ def build_token_to_orig_map(tokens):
     return token_to_orig_map
 
 
-def wordpiece2word(emb, wp2wd):
+def wordpiece2word(emb, wp2wd, use_gpu):
     """Convert word piece embedding to word embedding
 
     Args:
@@ -193,6 +193,8 @@ def wordpiece2word(emb, wp2wd):
     norm_mask = normalize(mask, norm="l1", axis=0)  # (wp_size * wd_size)
     norm_mask = torch.from_numpy(norm_mask)
 
+    if use_gpu:
+        norm_mask = norm_mask.cuda()
 
     return torch.mm(norm_mask.t(), emb)
   
