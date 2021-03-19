@@ -201,16 +201,18 @@ if __name__ == "__main__":
 
     parser.add_argument("--gpu_id", type=int, default=-1, required=True)
 
-    parser.add_argument("--process_instances", action="store_true", default=False,
-        help="Whether to process CPC/ABSA data from their raw data files.") 
+    parser.add_argument("--process_cpc_instances", action="store_true", default=False,
+        help="Whether to process CPC data from their raw data files.") 
+    parser.add_argument("--process_absa_instances", action="store_true", default=False,
+        help="Whether to process ABSA data from their raw data files.") 
 
     parser.add_argument("--generate_bert_emb", action="store_true", default=False)
     parser.add_argument("--bert_version", type=str, required=False,
-        default="bert-base-uncased", help="The version of BERT.")
+        default="bert-base-uncased", help="The version of BERT. Default=`bert-base-uncased`.")
 
     parser.add_argument("--generate_glove_emb", action="store_true", default=False)
     parser.add_argument("--glove_dimension", type=int, required=False,
-        default=100, help="The dimensions of GloVe.")
+        default=100, help="The dimensions of GloVe. Default=100.")
 
     parser.add_argument("--generate_dep_graph", action="store_true", default=False)
 
@@ -229,27 +231,31 @@ if __name__ == "__main__":
         print("[preprocess] gpu resource unavailable, using cpu")
 
 
-    # whether to re-process CPC/ABSA data from raw input files
-    if args.process_instances:
+    # whether to re-process CPC data from raw input files
+    if args.process_cpc_instances:
         # preprocess cpc
         print("[preprocess] processing cpc data ...")
         cpc_trn_data = preprocess_cpc(DATA_DIR + "data.csv", args.bert_version)
         cpc_tst_data = preprocess_cpc(DATA_DIR + "held-out-data.csv", args.bert_version)
 
-        # preprocess absa
-        print("[preprocess] processing absa data ...")
-        absa_data = preprocess_absa()
-
         # dump data
         print("[preprocess] dumping processed cpc/absa instances to {}.".format(DATA_DIR))
         dump_pickle(DATA_DIR+"processed_cpc_train.pkl", cpc_trn_data)
         dump_pickle(DATA_DIR+"processed_cpc_test.pkl", cpc_tst_data)
-        dump_pickle(DATA_DIR+"processed_absa.pkl", absa_data)
     else:
         print("[preprocess] loading cpc_trn/cpc_tst/absa data ...")
         cpc_trn_data = load_pickle(DATA_DIR+"processed_cpc_train.pkl")
         cpc_tst_data = load_pickle(DATA_DIR+"processed_cpc_test.pkl")
-        absa_data    = load_pickle(DATA_DIR+"processed_absa.pkl")
+
+    if args.process_absa_instances:
+        # preprocess absa
+        print("[preprocess] processing absa data ...")
+        absa_data = preprocess_absa()
+        dump_pickle(DATA_DIR+"processed_absa.pkl", absa_data)
+    else:
+        print("[preprocess] loading cpc_trn/cpc_tst/absa data ...")
+        absa_data = load_pickle(DATA_DIR+"processed_absa.pkl")
+
     
     # print cpc/absa statistics
     print("[preprocess] statistics:")
