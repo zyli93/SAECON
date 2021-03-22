@@ -17,6 +17,7 @@ import nltk
 import numpy as np
 import torch
 from transformers import BertTokenizer, BertModel
+import en_core_web_trf
 
 from utils import InstanceFeatures, Embeddings
 from utils import dump_pickle, load_pickle
@@ -142,7 +143,6 @@ def preprocess_glove_embedding(instance_features, model):
     
     return all_wordlevel_emb_glove
     
-
 def preprocess_absa():
     """
     Process Aspect-Based Sentiment Analysis datasets of SemEval-14/15/16 Tasks.
@@ -178,7 +178,6 @@ def preprocess_absa():
 
 def preprocess_depgraph(instance_features):
     """
-    TODO for Yilong
     Build dependency graphs for input instances
 
     Args:
@@ -188,12 +187,17 @@ def preprocess_depgraph(instance_features):
         depg_dict - Dict[idx, depgraph]. 
     """
     all_depgraph = {}
-    for idx, ins in instance_features:
-        assert idx == ins.sample_id, "[DepParse] idx does NOT match sample ID"
-        # TODO: build dep graph
-        depg = None 
-        all_depgraph[idx] = depg
+    nlp = en_core_web_trf.load()
 
+    sentences = [ins.sentence for ins in instance_features]
+    docs = nlp.pipe(sentences)
+    for idx, doc in tqdm(enumerate(docs)):
+        edges = []
+        for token in doc:
+            for child in token.children:
+                edges.append((token.i, child.i))
+        all_depgraph[idx] = edges
+    
     return all_depgraph
 
 if __name__ == "__main__":
