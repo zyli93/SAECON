@@ -7,6 +7,7 @@
     Python version: 3.6.0+
 """
 
+import sys
 import csv
 import argparse
 from tqdm import tqdm
@@ -40,7 +41,7 @@ def convert_Target_to_Instance(tgt:Target,
     sentiment = tgt.get("sentiment") # -1,0,1 ==> 0,1,2 (NEG,NEU,POS)
     text = tgt.get("text")
 
-    tokenize_output = tokenizer(target)
+    tokenize_output = tokenizer(text)
     token_ids, mask = tokenize_output['input_ids'], tokenize_output['attention_mask']
 
     tokens = tokenizer.convert_ids_to_tokens(token_ids)
@@ -117,8 +118,8 @@ def preprocess_bert_embedding(instance_features, bert, use_gpu):
         
     if use_gpu:
         """convert gpu tensors to cpu"""
-        for emb_mat in all_wordlevel_emb.values():
-            emb_mat = emb_mat.cpu()
+        for key in all_wordlevel_emb.keys():
+            all_wordlevel_emb[key] = all_wordlevel_emb[key].cpu()
 
     return all_wordlevel_emb
 
@@ -199,7 +200,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--gpu_id", type=int, default=-1, required=True)
+    parser.add_argument("--gpu_id", type=int, default=-1)
 
     parser.add_argument("--process_cpc_instances", action="store_true", default=False,
         help="Whether to process CPC data from their raw data files.") 
