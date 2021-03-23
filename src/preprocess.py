@@ -17,6 +17,7 @@ import nltk
 import numpy as np
 import torch
 from transformers import BertTokenizer, BertModel
+from spacy.lang.en import English
 
 from utils import InstanceFeatures, Embeddings
 from utils import dump_pickle, load_pickle
@@ -133,11 +134,17 @@ def preprocess_glove_embedding(instance_features, model):
         return word_embedding
 
     all_wordlevel_emb_glove = {}
+    nlp = English()
+    # Create a Tokenizer with the default settings for English
+    # including punctuation rules and exceptions
+    tokenizer = nlp.tokenizer
+
     for idx, ins in tqdm(enumerate(instance_features)):
         assert idx == ins.get_sample_id(), "[GLOVE] idx does NOT match sample ID"
-        wd_tokens = nltk.word_tokenize(ins.sentence)
+        wd_tokens = tokenizer(ins.sentence)
+        # each wd is a spacy token, therefore use ".text" to convert to str
         wd_emb = torch.tensor([
-            get_embedding(wd) for wd in wd_tokens], dtype=torch.float)
+            get_embedding(wd.text) for wd in wd_tokens], dtype=torch.float)
         all_wordlevel_emb_glove[idx] = wd_emb
     
     return all_wordlevel_emb_glove
