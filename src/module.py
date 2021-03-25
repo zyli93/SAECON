@@ -90,6 +90,12 @@ class SGCNConv(nn.Module):
         self.conv_in = SGCNDir(dim_in, dim_out, num_labels, gating)
         self.conv_out = SGCNDir(dim_in, dim_out, num_labels, gating)
 
+        for name, param in self.named_parameters():
+            if 'b' in name:
+                nn.init.zeros_(param)
+            else:
+                nn.init.xavier_normal_(param)
+
     def forward(
         self,
         x: torch.Tensor,
