@@ -19,6 +19,14 @@ DATA_DIR = "./data/"
 LOG_DIR = "./log/"
 CKPT_DIR = "./ckpt/"
 
+REV_LABEL = {
+    "BETTER": "WORSE",
+    "NONE": "NONE",
+    "WORSE": "BETTER"
+}
+
+LABEL2ID = {"BETTER": 0, "WORSE": 1, "NONE": 2}
+
 def load_pickle(path):
     """ load pickle object from file """
     with open(path, "rb") as fin:
@@ -110,10 +118,10 @@ class InstanceFeatures:
     def get_token_mask(self):
         return self.token_mask
 
-    def get_labels(self):
+    def get_label(self):
         return self.label
 
-    def get_label_ids(self):
+    def get_label_id(self):
         return self.label_id
 
     def get_token_to_orig_map(self):
@@ -121,6 +129,12 @@ class InstanceFeatures:
 
     def get_we_indices(self):
         return self.we_indices
+    
+    def get_task(self):
+        return self.task
+    
+    def get_sentence(self):
+        return self.sentence
 
 
 def convert_tokens_to_sentence(tokens):
@@ -202,18 +216,25 @@ def wordpiece2word(emb, wp2wd, use_gpu):
 # Ex: [[53, 768], [12, 768]] -> [[53, 768], [53, 768]], 53
 
 def dynamic_padding(tensor_list):
-
+    """[not used]"""
     padded_list = []
-    max_length = 0
+    tensor_lengths = [x.shape[0] for x in tensor_list]
+    max_length = max(tensor_lengths)
 
-    for each_tensor in tensor_list:
-
-        if each_tensor.shape[0] > max_length:
-            max_length = each_tensor.shape[0]
-
-    for each_tensor in tensor_list:
-        padding = ConstantPad2d((0, 0, 0, max_length - each_tensor.shape[0]), 0)
-
-        padded_list.append(padding(each_tensor))
+    for tensor in tensor_list:
+        pad_len = max_length - tensor.shape[0]
+        padding = ConstantPad2d((0, 0, 0, pad_len), 0)
+        padded_list.append(padding())
 
     return padded_list, max_length
+
+
+def reverse_instance(ins, sample_id):
+    entityB, entityA = ins.get_entities()
+    rev_label = REV_LABEL[ins.get_label()]
+    return InstanceFeatures(task=ins.get_task(), sample_id=sample_id,
+        tokens=ins.get_tokens(), entityA=entityA, entityB=entityB, 
+        token_ids=ins.get_token_ids(), token_mask=ins.get_token_mask(),
+        label=rev_label, label_id=LABEL2ID[rev_label],
+        token_to_orig_map=ins.get_token_to_orig_map(), sentence=ins.get_sentence(),
+        we_indices=None)
