@@ -19,6 +19,7 @@ import torch
 from transformers import BertTokenizer, BertModel
 import en_core_web_trf
 
+from constants import *
 from utils import InstanceFeatures, Embeddings
 from utils import dump_pickle, load_pickle
 from utils import build_token_to_orig_map, dynamic_padding
@@ -191,12 +192,23 @@ def preprocess_depgraph(instance_features):
 
     sentences = [ins.sentence for ins in instance_features]
     docs = nlp.pipe(sentences)
+
     for idx, doc in tqdm(enumerate(docs)):
-        edges = []
+        edge_index = []
+        edge_label = []
+
         for token in doc:
             for child in token.children:
-                edges.append((token.i, child.i))
-        all_depgraph[idx] = edges
+                edge_index.append([token.i, child.i])
+                edge_label.append(DEPENDENCY_LABELS[child.dep_])
+
+        edge_index = torch.tensor(edge_index, dtype=torch.long)
+        edge_index = torch.t(edge_index).contiguous()
+        edge_label = torch.tensor(edge_label, dtype=torch.long)
+        all_depgraph[idx] = {
+            'edge_index': edge_index,
+            'edge_lable': edge_label
+        }
     
     return all_depgraph
 
