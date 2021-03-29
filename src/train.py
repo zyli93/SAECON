@@ -36,27 +36,35 @@ if __name__ == "__main__":
     parser.add_argument("--gpu_id", type=int, required=True)
     parser.add_argument("--random_seed", type=int, default=2021)
     parser.add_argument("--shuffle", action="store_true", default=False,
-                    help="Whether to shuffle data before a new epoch")
+        help="Whether to shuffle data before a new epoch")
 
     parser.add_argument("--load_model", action="store_true", default=False,
-                    help="Whether to resume training from an existing ckpt")
+        help="Whether to resume training from an existing ckpt")
     parser.add_argument("--load_model_path", type=str, help="Path to load existing model")
 
     # input embedding setting: bert (fixed/fine-tune) and glove
     parser.add_argument("--input_emb", type=str, default="bert_fixed", 
-        help="Select from `bert_fixed`, `bert_ft`, and `glove`")
+        help="Select from `fix`, `ft`, and `glove`")
     parser.add_argument("--bert_version", type=str, default="bert-base-uncased")
     parser.add_argument("--glove_dim", type=int, default=100)
+
+    # training
+    parser.add_argument("--batch_size", type=int, default=64)
+    parser.add_argument("--batch_ratio", type=str, default="1:1", 
+        help="Ratio of batch numbers for CPC and ABSA. Default: 1:1.")
+    parser.add_argument("--data_augmentation", action="store_true", default=False,
+        help="Whether to conduct data augmentation for training set. Default=False.")
+
     
     # save model configeration
-    parser.add_argument("--save_model", action="store_true", default=False,
-                        help="Whether to turn on model saving.")
+    parser.add_argument("--save_model", action="store_true", default=False, 
+        help="Whether to turn on model saving.")
     parser.add_argument("--save_epnum", type=int, default=2, help="Save model per x epochs.")
     parser.add_argument("--save_after_epnum", type=int, default=1000,
-                        help="Number of iterations per model saving." + 
-                            "Only in effect when `save_model` is turned on.")
+        help="Number of iterations per model saving." + 
+             "Only in effect when `save_model` is turned on.")
     parser.add_argument("--save_model_path", type=str, default="./ckpt/",
-                        help="Path to directory to save models")
+        help="Path to directory to save models")
 
     args = parser.parse_args()
 
@@ -92,7 +100,7 @@ if __name__ == "__main__":
     torch.manual_seed(args.random_seed)
     np.random.seed(args.random_seed)
 
-    dataloader = DataLoader()
+    dataloader = DataLoader(args)
 
     # move model to cuda device
     model = SaeccModel(args)

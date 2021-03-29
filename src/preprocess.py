@@ -18,12 +18,14 @@ import numpy as np
 import torch
 from transformers import BertTokenizer, BertModel
 import en_core_web_trf
+from spacy.lang.en import English
 
 from constants import *
 from utils import InstanceFeatures, Embeddings
 from utils import dump_pickle, load_pickle
 from utils import build_token_to_orig_map, dynamic_padding
 from utils import wordpiece2word
+from utils import LABEL2ID
 
 from parsers import semeval_14, semeval_15_16
 from data_types import Target
@@ -64,7 +66,6 @@ def preprocess_cpc(file_path, bert_version):
     cpc_data_features = []
 
     tokenizer = BertTokenizer.from_pretrained(bert_version)
-    label2id = {"BETTER": 0, "WORSE": 1, "NONE": 2}
 
     with open(file_path, 'r') as f:
         reader = csv.DictReader(f)
@@ -88,7 +89,7 @@ def preprocess_cpc(file_path, bert_version):
             cpc_data_features.append(
                 InstanceFeatures(task="cpc", sample_id=idx, entityA=entityA,
                     entityB=entityB, tokens=tokens, token_ids=token_ids,
-                    token_mask=mask, label=label, label_id=label2id[label],
+                    token_mask=mask, label=label, label_id=LABEL2ID[label],
                     token_to_orig_map=token_to_orig_map, 
                     sentence=sentence_from_tokens, we_indices=None))
 
@@ -135,11 +136,17 @@ def preprocess_glove_embedding(instance_features, model):
         return word_embedding
 
     all_wordlevel_emb_glove = {}
+    nlp = English()
+    # Create a Tokenizer with the default settings for English
+    # including punctuation rules and exceptions
+    tokenizer = nlp.tokenizer
+
     for idx, ins in tqdm(enumerate(instance_features)):
         assert idx == ins.get_sample_id(), "[GLOVE] idx does NOT match sample ID"
-        wd_tokens = nltk.word_tokenize(ins.sentence)
+        wd_tokens = tokenizer(ins.sentence)
+        # each wd is a spacy token, therefore use ".text" to convert to str
         wd_emb = torch.tensor([
-            get_embedding(wd) for wd in wd_tokens], dtype=torch.float)
+            get_embedding(wd.text) for wd in wd_tokens], dtype=torch.float)
         all_wordlevel_emb_glove[idx] = wd_emb
     
     return all_wordlevel_emb_glove
@@ -260,7 +267,7 @@ if __name__ == "__main__":
         dump_pickle(DATA_DIR+"processed_cpc_train.pkl", cpc_trn_data)
         dump_pickle(DATA_DIR+"processed_cpc_test.pkl", cpc_tst_data)
     else:
-        print("[preprocess] loading cpc_trn/cpc_tst/absa data ...")
+        print("[preprocess] loading cpc_trn/cpc_tst data ...")
         cpc_trn_data = load_pickle(DATA_DIR+"processed_cpc_train.pkl")
         cpc_tst_data = load_pickle(DATA_DIR+"processed_cpc_test.pkl")
 
@@ -270,7 +277,7 @@ if __name__ == "__main__":
         absa_data = preprocess_absa()
         dump_pickle(DATA_DIR+"processed_absa.pkl", absa_data)
     else:
-        print("[preprocess] loading cpc_trn/cpc_tst/absa data ...")
+        print("[preprocess] loading absa data ...")
         absa_data = load_pickle(DATA_DIR+"processed_absa.pkl")
 
     
