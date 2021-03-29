@@ -17,8 +17,10 @@ import nltk
 import numpy as np
 import torch
 from transformers import BertTokenizer, BertModel
+import en_core_web_trf
 from spacy.lang.en import English
 
+from constants import *
 from utils import InstanceFeatures, Embeddings
 from utils import dump_pickle, load_pickle
 from utils import build_token_to_orig_map, dynamic_padding
@@ -149,7 +151,6 @@ def preprocess_glove_embedding(instance_features, model):
     
     return all_wordlevel_emb_glove
     
-
 def preprocess_absa():
     """
     Process Aspect-Based Sentiment Analysis datasets of SemEval-14/15/16 Tasks.
@@ -185,7 +186,6 @@ def preprocess_absa():
 
 def preprocess_depgraph(instance_features):
     """
-    TODO for Yilong
     Build dependency graphs for input instances
 
     Args:
@@ -195,12 +195,28 @@ def preprocess_depgraph(instance_features):
         depg_dict - Dict[idx, depgraph]. 
     """
     all_depgraph = {}
-    for idx, ins in instance_features:
-        assert idx == ins.sample_id, "[DepParse] idx does NOT match sample ID"
-        # TODO: build dep graph
-        depg = None 
-        all_depgraph[idx] = depg
+    nlp = en_core_web_trf.load()
 
+    sentences = [ins.sentence for ins in instance_features]
+    docs = nlp.pipe(sentences)
+
+    for idx, doc in tqdm(enumerate(docs)):
+        edge_index = []
+        edge_label = []
+
+        for token in doc:
+            for child in token.children:
+                edge_index.append([token.i, child.i])
+                edge_label.append(DEPENDENCY_LABELS[child.dep_])
+
+        edge_index = torch.tensor(edge_index, dtype=torch.long)
+        edge_index = torch.t(edge_index).contiguous()
+        edge_label = torch.tensor(edge_label, dtype=torch.long)
+        all_depgraph[idx] = {
+            'edge_index': edge_index,
+            'edge_lable': edge_label
+        }
+    
     return all_depgraph
 
 if __name__ == "__main__":
