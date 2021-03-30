@@ -106,14 +106,15 @@ class DataLoader():
         new_indices = []
         for ins in self.cpc_trn_indices:
             # reverse a single training instance 
-            ins_id = ins.get_sample_id()
-            rev_ins = reverse_instance(ins, sample_id=id_)
-            self.cpc_trn.append(rev_ins)
-            if not fine_tune:
-                self.cpc_trn_emb[id_] = self.cpc_trn_emb[ins_id]
+            if ins.get_label() != "NONE":
+                ins_id = ins.get_sample_id()
+                rev_ins = reverse_instance(ins, sample_id=id_)
+                self.cpc_trn.append(rev_ins)
                 self.cpc_trn_depg[id_] = self.cpc_trn_depg[ins_id]
-            new_indices.append(id_)
-            id_ += 1
+                if not fine_tune:
+                    self.cpc_trn_emb[id_] = self.cpc_trn_emb[ins_id]
+                new_indices.append(id_)
+                id_ += 1
         self.cpc_trn_indices.extend(new_indices)
 
 

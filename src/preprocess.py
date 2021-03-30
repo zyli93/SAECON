@@ -127,7 +127,8 @@ def preprocess_bert_embedding(instance_features, bert, use_gpu):
     return all_wordlevel_emb
 
 
-def preprocess_glove_embedding(instance_features, model):
+def preprocess_glove_embedding(instance_features, model, tokenizer):
+    """using the tokenizer from spaCy"""
     def get_embedding(word):
         try:
             word_embedding = model[word]
@@ -136,10 +137,6 @@ def preprocess_glove_embedding(instance_features, model):
         return word_embedding
 
     all_wordlevel_emb_glove = {}
-    nlp = English()
-    # Create a Tokenizer with the default settings for English
-    # including punctuation rules and exceptions
-    tokenizer = nlp.tokenizer
 
     for idx, ins in tqdm(enumerate(instance_features)):
         assert idx == ins.get_sample_id(), "[GLOVE] idx does NOT match sample ID"
@@ -184,7 +181,7 @@ def preprocess_absa():
     return all_data_instances
     
 
-def preprocess_depgraph(instance_features):
+def preprocess_depgraph(instance_features, lang_parser):
     """
     Build dependency graphs for input instances
 
@@ -195,10 +192,10 @@ def preprocess_depgraph(instance_features):
         depg_dict - Dict[idx, depgraph]. 
     """
     all_depgraph = {}
-    nlp = en_core_web_trf.load()
+    # nlp = en_core_web_trf.load()
 
     sentences = [ins.sentence for ins in instance_features]
-    docs = nlp.pipe(sentences)
+    docs = lang_parser.pipe(sentences, disable=['tagger', 'ner'])
 
     for idx, doc in tqdm(enumerate(docs)):
         edge_index = []
@@ -306,8 +303,13 @@ if __name__ == "__main__":
         absa_bert_emb = preprocess_bert_embedding(absa_data, bert, use_gpu)
         dump_pickle(DATA_DIR+"absa_bert_emb.pkl", absa_bert_emb)
 
+    if args.generate_glove_emb or args.generate_dep_graph:
+        """do NOT load it unless needed"""
+        nlp = en_core_web_trf.load()
+
     if args.generate_glove_emb:
         print("[preprocess] generating GLOVE embedding ...")
+        tkn = nlp.tokenizer
 
         glove_path = "./data/glove/glove.6B.{}d.word2vec_format.txt".format(
             args.glove_dimension)
@@ -315,23 +317,25 @@ if __name__ == "__main__":
         glove[OOV_TOK] = np.random.rand(args.glove_dimension)
 
         print("\t\t CPC data ...")
-        cpc_trn_glove_emb = preprocess_glove_embedding(cpc_trn_data, glove)
-        cpc_tst_glove_emb = preprocess_glove_embedding(cpc_tst_data, glove)
+        cpc_trn_glove_emb = preprocess_glove_embedding(cpc_trn_data, glove, tkn)
+        cpc_tst_glove_emb = preprocess_glove_embedding(cpc_tst_data, glove, tkn)
         dump_pickle(DATA_DIR+"cpc_train_glove_emb.pkl", cpc_trn_glove_emb)
         dump_pickle(DATA_DIR+"cpc_test_glove_emb.pkl", cpc_tst_glove_emb)
     
         print("\t\t ABSA data ...")
-        absa_glove_emb = preprocess_glove_embedding(absa_data, glove)
+        absa_glove_emb = preprocess_glove_embedding(absa_data, glove, tkn)
         dump_pickle(DATA_DIR+"absa_glove_emb.pkl", absa_glove_emb)
 
     if args.generate_dep_graph:
         print("[preprocess] generating Dependency Graph ...")
         print("\t\t CPC data ...")
-        cpc_trn_depg = preprocess_depgraph(cpc_trn_data)
-        cpc_tst_depg = preprocess_depgraph(cpc_tst_data)
+
+        # `nlp` is the `spacy.lang.en.English` language parser class
+        cpc_trn_depg = preprocess_depgraph(cpc_trn_data, nlp)
+        cpc_tst_depg = preprocess_depgraph(cpc_tst_data, nlp)
         dump_pickle(DATA_DIR+"cpc_train_depgraph.pkl", cpc_trn_depg)
         dump_pickle(DATA_DIR+"cpc_test_depgraph.pkl", cpc_tst_depg)
 
         print("\t\t ABSA data ...")
-        absa_depg = preprocess_depgraph(absa_data)
+        absa_depg = preprocess_depgraph(absa_data, nlp)
         dump_pickle(DATA_DIR+"absa_depgraph.pkl", absa_depg)
