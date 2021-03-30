@@ -18,7 +18,6 @@ import numpy as np
 import torch
 from transformers import BertTokenizer, BertModel
 import en_core_web_trf
-from spacy.lang.en import English
 
 from constants import *
 from utils import InstanceFeatures, Embeddings
