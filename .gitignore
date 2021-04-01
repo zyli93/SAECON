@@ -137,5 +137,5 @@ authors
 data/glove
 data/old
 data/*.pkl
-related_works/
+related_works
 core

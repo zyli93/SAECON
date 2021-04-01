@@ -21,8 +21,8 @@ import en_core_web_trf
 from constants import *
 from utils import InstanceFeatures #, Embeddings
 from utils import dump_pickle, load_pickle
-# from utils import build_token_to_orig_map, dynamic_padding
-from utils import wordpiece2word
+from utils import pretoken2token
+from utils import wordpiece2word, get_entity_pos
 from utils import LABEL2ID
 
 from parsers import semeval_14, semeval_15_16
@@ -34,8 +34,8 @@ DATA_DIR = "./data/"
 OOV_TOK = "OutOfVocab"
 
 
-def convert_Target_to_Instance(tgt:Target, 
-    tokenizer:BertTokenizer, task: str, sample_id: int) -> InstanceFeatures:
+def convert_Target_to_Instance(tgt:Target, bert_tokenizer, pretokenizer, 
+        task, sample_id) -> InstanceFeatures:
     """
     Convert Target of ABSA to InstanceFeatures
     """
@@ -43,32 +43,28 @@ def convert_Target_to_Instance(tgt:Target,
     sentiment = tgt.get("sentiment") # -1,0,1 ==> 0,1,2 (NEG,NEU,POS)
     text = tgt.get("text")
 
-    tokenize_output = tokenizer(text)
-    token_ids, mask = tokenize_output['input_ids'], tokenize_output['attention_mask']
+    doc = pretokenizer(text)
+    token_ids, token_to_orig_map = pretoken2token(doc, bert_tokenizer)
+    mask = [1] * len(token_ids)
 
-    tokens = tokenizer.convert_ids_to_tokens(token_ids)
-    sentence_from_tokens = tokenizer.convert_tokens_to_string(tokens)
-    token_to_orig_map = build_token_to_orig_map(tokens)
+    tokens = bert_tokenizer.convert_ids_to_tokens(token_ids)
+    sentence_from_tokens = bert_tokenizer.convert_tokens_to_string(tokens)
+    entityA_pos = get_entity_pos(doc, pretokenizer(target))
 
     return InstanceFeatures(
         task=task, sample_id=sample_id, tokens=tokens, entityA=target, entityB=None,
+        entityA_pos=entityA_pos, entityB_pos=None,
         token_ids=token_ids, token_mask=mask, label=str(sentiment), 
         label_id=sentiment+1, token_to_orig_map=token_to_orig_map,
-        sentence=sentence_from_tokens, we_indices=None)
+        sentence=sentence_from_tokens, sentence_raw=text, we_indices=None)
 
-def get_entity_pos(doc_sentence, doc_entity):
-    ls, le = len(doc_sentence), len(doc_entity)
-    for i in range(ls):
-        if doc_sentence[i:i+le].text == doc_entity.text:
-            return list(range(i, i+le))
+
 
 # Return a list of InstanceFeatures. One InstanceFeature for each sentence.
-def preprocess_cpc(file_path, bert_version, pretokenizer):
+def preprocess_cpc(file_path, bert_tokenizer, pretokenizer):
 
     # return values
     cpc_data_features = []
-
-    tokenizer = BertTokenizer.from_pretrained(bert_version)
 
     with open(file_path, 'r') as f:
         reader = csv.DictReader(f)
@@ -81,31 +77,18 @@ def preprocess_cpc(file_path, bert_version, pretokenizer):
 
             # spacy pretokenization
             doc = pretokenizer(sentence)
-            token_ids = []
-            token_to_orig_map = {}
-            wp_idx = 1
-            for idx, word in enumerate(doc):
-                # bert word tokenization
-                tokenizer_output = tokenizer(word)
-                token_ids.extend(tokenizer_output['input_ids'][1:-1])
-                # build wp to wd map
-                for _ in tokenizer_output:
-                    token_to_orig_map[wp_idx] = idx
-                    wp_idx += 1
-
-            token_ids = [101] + token_ids + [102]
+    
+            # get bert tokens and token to original word map
+            token_ids, token_to_orig_map = pretoken2token(doc, bert_tokenizer)
             mask = [1] * len(token_ids)
-            assert len(token_ids) == wp_idx + 1, "# of wordpieces mismatch"
 
             # keep the special tokens inside the `tokens`
-            tokens = tokenizer.convert_ids_to_tokens(token_ids)
-            sentence_from_tokens = tokenizer.convert_tokens_to_string(tokens)
+            tokens = bert_tokenizer.convert_ids_to_tokens(token_ids)
+            sentence_from_tokens = bert_tokenizer.convert_tokens_to_string(tokens)
 
-            # get entity position
-            docA = pretokenizer(entityA)
-            docB = pretokenizer(entityB)
-            entityA_pos = get_entity_pos(doc, docA)
-            entityB_pos = get_entity_pos(doc, docB)
+            # get entity positions
+            entityA_pos = get_entity_pos(doc, pretokenizer(entityA))
+            entityB_pos = get_entity_pos(doc, pretokenizer(entityB))
 
             cpc_data_features.append(
                 InstanceFeatures(
@@ -174,7 +157,7 @@ def preprocess_glove_embedding(instance_features, model, tokenizer):
     
     return all_wordlevel_emb_glove
     
-def preprocess_absa():
+def preprocess_absa(bert_tokenizer, pretokenizer):
     """
     Process Aspect-Based Sentiment Analysis datasets of SemEval-14/15/16 Tasks.
     Many thanks to the original author, Henry B. Moss, of the methods `semeval_14` 
@@ -198,11 +181,10 @@ def preprocess_absa():
     res16_data = semeval_15_16(f_res16)
     all_data_targets.extend(res16_data.data())
 
-    tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
     all_data_instances = []
     for idx, target in tqdm(enumerate(all_data_targets)):
         all_data_instances.append(convert_Target_to_Instance(
-            target, tokenizer, task="absa", sample_id=idx))
+            target, bert_tokenizer, pretokenizer, task="absa", sample_id=idx))
     
     return all_data_instances
     
@@ -277,15 +259,17 @@ if __name__ == "__main__":
     else:
         print("[preprocess] gpu resource unavailable, using cpu")
 
+    # get spacy tokenizer and bert tokenize
     nlp = en_core_web_trf.load()
-    tkn = nlp.tokenizer
+    pre_tkn = nlp.tokenizer
+    bert_tkn = BertTokenizer.from_pretrained(args.bert_version)
 
     # whether to re-process CPC data from raw input files
     if args.process_cpc_instances:
         # preprocess cpc
         print("[preprocess] processing cpc data ...")
-        cpc_trn_data = preprocess_cpc(DATA_DIR + "data.csv", args.bert_version, tkn)
-        cpc_tst_data = preprocess_cpc(DATA_DIR + "held-out-data.csv", args.bert_version, tkn)
+        cpc_trn_data = preprocess_cpc(DATA_DIR + "data.csv", bert_tkn, pre_tkn)
+        cpc_tst_data = preprocess_cpc(DATA_DIR + "held-out-data.csv", bert_tkn, pre_tkn)
 
         # dump data
         print("[preprocess] dumping processed cpc/absa instances to {}.".format(DATA_DIR))
@@ -299,7 +283,7 @@ if __name__ == "__main__":
     if args.process_absa_instances:
         # preprocess absa
         print("[preprocess] processing absa data ...")
-        absa_data = preprocess_absa()
+        absa_data = preprocess_absa(bert_tkn, pre_tkn)
         dump_pickle(DATA_DIR+"processed_absa.pkl", absa_data)
     else:
         print("[preprocess] loading absa data ...")
@@ -340,13 +324,13 @@ if __name__ == "__main__":
         glove[OOV_TOK] = np.random.rand(args.glove_dimension)
 
         print("\t\t CPC data ...")
-        cpc_trn_glove_emb = preprocess_glove_embedding(cpc_trn_data, glove, tkn)
-        cpc_tst_glove_emb = preprocess_glove_embedding(cpc_tst_data, glove, tkn)
+        cpc_trn_glove_emb = preprocess_glove_embedding(cpc_trn_data, glove, pre_tkn)
+        cpc_tst_glove_emb = preprocess_glove_embedding(cpc_tst_data, glove, pre_tkn)
         dump_pickle(DATA_DIR+"cpc_train_glove_emb.pkl", cpc_trn_glove_emb)
         dump_pickle(DATA_DIR+"cpc_test_glove_emb.pkl", cpc_tst_glove_emb)
     
         print("\t\t ABSA data ...")
-        absa_glove_emb = preprocess_glove_embedding(absa_data, glove, tkn)
+        absa_glove_emb = preprocess_glove_embedding(absa_data, glove, pre_tkn)
         dump_pickle(DATA_DIR+"absa_glove_emb.pkl", absa_glove_emb)
 
     if args.generate_dep_graph:

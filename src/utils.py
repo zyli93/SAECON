@@ -56,6 +56,31 @@ def print_args(args):
             print("\t" + arg + " : " + str(getattr(args, arg)))
     print("="* 70 + "\n")
 
+def get_entity_pos(doc_sentence, doc_entity):
+    ls, le = len(doc_sentence), len(doc_entity)
+    for i in range(ls):
+        if doc_sentence[i:i+le].text == doc_entity.text:
+            return list(range(i, i+le))
+
+
+def pretoken2token(doc, bert_tokenizer):
+    token_ids = []
+    token_to_orig_map = {}
+    wp_idx = 1
+    for wd_idx, word in enumerate(doc):
+        # bert word tokenization
+        tokenizer_output = bert_tokenizer(word, add_special_tokens=False)
+        token_ids.extend(tokenizer_output['input_ids'])
+        # build wp to wd map
+        for _ in tokenizer_output['input_ids']:
+            token_to_orig_map[wp_idx] = wd_idx
+            wp_idx += 1
+    token_ids = [101] + token_ids + [102]
+    assert len(token_ids) == wp_idx + 1, \
+        f"# of wordpieces mismatch {len(token_ids)} vs {wp_idx + 1}"
+
+    return token_ids, token_to_orig_map
+
 
 class InstanceFeatures:
     def __init__(self,
@@ -114,6 +139,9 @@ class InstanceFeatures:
     
     def get_entities(self):
         return self.entityA, self.entityB
+    
+    def get_entity_positions(self):
+        return self.entityA_pos, self.entityB_pos
 
     def get_tokens(self):
         return self.tokens
@@ -141,6 +169,9 @@ class InstanceFeatures:
     
     def get_sentence(self):
         return self.sentence
+    
+    def get_sentence_raw(self):
+        return self.sentence_raw
 
 
 # def convert_tokens_to_sentence(tokens):
@@ -246,10 +277,12 @@ def dynamic_padding(tensor_list, length = None):
 
 def reverse_instance(ins, sample_id):
     entityB, entityA = ins.get_entities()
+    entityB_pos, entityA_pos = ins.get_entity_positions()
     rev_label = REV_LABEL[ins.get_label()]
     return InstanceFeatures(task=ins.get_task(), sample_id=sample_id,
         tokens=ins.get_tokens(), entityA=entityA, entityB=entityB, 
+        entityA_pos=entityA_pos, entityB_pos=entityB_pos,
         token_ids=ins.get_token_ids(), token_mask=ins.get_token_mask(),
         label=rev_label, label_id=LABEL2ID[rev_label],
         token_to_orig_map=ins.get_token_to_orig_map(), sentence=ins.get_sentence(),
-        we_indices=None)
+        sentence_raw=ins.get_sentence_raw(), we_indices=None)
