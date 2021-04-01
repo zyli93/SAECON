@@ -210,7 +210,7 @@ def preprocess_depgraph(instance_features, lang_parser):
         edge_label = torch.tensor(edge_label, dtype=torch.long)
         all_depgraph[idx] = {
             'edge_index': edge_index,
-            'edge_lable': edge_label
+            'edge_label': edge_label
         }
     
     return all_depgraph
