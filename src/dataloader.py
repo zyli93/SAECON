@@ -14,6 +14,7 @@
 import numpy as np
 from sklearn.model_selection import train_test_split
 from torch.nn.utils.rnn import pad_sequence
+from torch_geometric.data import Data, Batch
 
 from utils import DATA_DIR
 from utils import load_pickle
@@ -148,7 +149,17 @@ class DataLoader():
             emb = [self.absa_emb[x] for x in indices]
             depg = None
 
-        # TODO: add DepGraph parsing here!
+        # batch dependency graph
+        depg_list = [
+            Data(
+                x=emb_i, 
+                edge_index=depg_i['edge_index'], 
+                edge_attr=depg_i['edge_label']
+            )
+            for emb_i, depg_i in zip(emb, depg)
+        ]
+        depg = Batch.from_data_list(depg_list)
+        
         emb = pad_sequence(emb, batch_first=True)
         return {"task": task, "instances": instances,
             "embedding": emb, "depgraph": depg}
