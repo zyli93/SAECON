@@ -86,16 +86,17 @@ def preprocess_cpc(file_path, bert_version, pretokenizer):
             wp_idx = 1
             for idx, word in enumerate(doc):
                 # bert word tokenization
-                tokenizer_output = tokenizer(word)
-                token_ids.extend(tokenizer_output['input_ids'][1:-1])
+                tokenizer_output = tokenizer(word.text)
+                input_ids = tokenizer_output['input_ids'][1:-1]
+                token_ids.extend(input_ids)
                 # build wp to wd map
-                for _ in tokenizer_output:
+                for _ in input_ids:
                     token_to_orig_map[wp_idx] = idx
                     wp_idx += 1
 
             token_ids = [101] + token_ids + [102]
             mask = [1] * len(token_ids)
-            assert len(token_ids) == wp_idx + 1, "# of wordpieces mismatch"
+            assert len(token_ids) == wp_idx + 1, f"# of wordpieces mismatch {len(token_ids)} vs {wp_idx + 1}"
 
             # keep the special tokens inside the `tokens`
             tokens = tokenizer.convert_ids_to_tokens(token_ids)
@@ -218,7 +219,6 @@ def preprocess_depgraph(instance_features, lang_parser):
         depg_dict - Dict[idx, depgraph]. 
     """
     all_depgraph = {}
-    # nlp = en_core_web_trf.load()
 
     sentences = [ins.sentence for ins in instance_features]
     docs = lang_parser.pipe(sentences, disable=['tagger', 'ner'])
