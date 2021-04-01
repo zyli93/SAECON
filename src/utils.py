@@ -62,7 +62,9 @@ class InstanceFeatures:
                  task: str,
                  sample_id: int,
                  entityA: str,
+                 entityA_pos: list,
                  entityB: str,
+                 entityB_pos: list,
                  tokens: list,
                  token_ids: list,
                  token_mask: list, 
@@ -70,6 +72,7 @@ class InstanceFeatures:
                  label_id: int,
                  token_to_orig_map: dict,
                  sentence: str,
+                 sentence_raw: str,
                  we_indices: list):
         """
         TODO: revise the docstring for new arguments
@@ -90,18 +93,21 @@ class InstanceFeatures:
                 sentence.
             self.we_indices: Set to None for now.
         """
-        self.task       = task
-        self.sample_id  = sample_id
-        self.tokens     = tokens
-        self.entityA    = entityA
-        self.entityB    = entityB
-        self.token_ids  = token_ids
-        self.token_mask = token_mask
-        self.label      = label
-        self.label_id   = label_id
-        self.token2orig = token_to_orig_map
-        self.sentence   = sentence
-        self.we_indices = we_indices
+        self.task           = task
+        self.sample_id      = sample_id
+        self.tokens         = tokens
+        self.entityA        = entityA
+        self.entityA_pos    = entityA_pos
+        self.entityB        = entityB
+        self.entityB_pos    = entityB_pos
+        self.token_ids      = token_ids
+        self.token_mask     = token_mask
+        self.label          = label
+        self.label_id       = label_id
+        self.token2orig     = token_to_orig_map
+        self.sentence       = sentence
+        self.sentence_raw   = sentence_raw
+        self.we_indices     = we_indices
     
     def get_sample_id(self):
         return self.sample_id
@@ -137,12 +143,12 @@ class InstanceFeatures:
         return self.sentence
 
 
-def convert_tokens_to_sentence(tokens):
-    """convert a list of tokens to a sentences"""
-    # change "'" to "##'"
-    tokens = [token if token != "'" else "##'" for token in tokens]
-    text = ' '.join([x for x in tokens])
-    return text.replace(' ##', '')
+# def convert_tokens_to_sentence(tokens):
+#     """convert a list of tokens to a sentences"""
+#     # change "'" to "##'"
+#     tokens = [token if token != "'" else "##'" for token in tokens]
+#     text = ' '.join([x for x in tokens])
+#     return text.replace(' ##', '')
 
 
 class Embeddings:
@@ -165,22 +171,21 @@ class Embeddings:
         return self.embedding_without_word_piece
 
 
-def build_token_to_orig_map(tokens):
-    token_indices = list(range(1, len(tokens) - 1))
-    tok2orig_list = []
-    for i in token_indices:
-        if i == 1:
-            tok2orig_list.append(0)
-        else:
-            if len(tokens[i]) > 2 and tokens[i][0:2] == "##":
-                tok2orig_list.append(tok2orig_list[-1])
-            else:
-                tok2orig_list.append(tok2orig_list[-1] + 1)
+# def build_token_to_orig_map(tokens):
+#     token_indices = list(range(1, len(tokens) - 1))
+#     tok2orig_list = []
+#     for i in token_indices:
+#         if i == 1:
+#             tok2orig_list.append(0)
+#         else:
+#             if len(tokens[i]) > 2 and tokens[i][0:2] == "##":
+#                 tok2orig_list.append(tok2orig_list[-1])
+#             else:
+#                 tok2orig_list.append(tok2orig_list[-1] + 1)
     
-    assert len(token_indices) == len(tok2orig_list), "Unequal lengths!"
-    token_to_orig_map = dict(zip(token_indices, tok2orig_list))
-    return token_to_orig_map
-
+#     assert len(token_indices) == len(tok2orig_list), "Unequal lengths!"
+#     token_to_orig_map = dict(zip(token_indices, tok2orig_list))
+#     return token_to_orig_map
 
 def wordpiece2word(emb, wp2wd, use_gpu):
     """Convert word piece embedding to word embedding

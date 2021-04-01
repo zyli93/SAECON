@@ -13,16 +13,15 @@ import argparse
 from tqdm import tqdm
 
 import gensim
-import nltk
 import numpy as np
 import torch
 from transformers import BertTokenizer, BertModel
 import en_core_web_trf
 
 from constants import *
-from utils import InstanceFeatures, Embeddings
+from utils import InstanceFeatures #, Embeddings
 from utils import dump_pickle, load_pickle
-from utils import build_token_to_orig_map, dynamic_padding
+# from utils import build_token_to_orig_map, dynamic_padding
 from utils import wordpiece2word
 from utils import LABEL2ID
 
@@ -57,9 +56,14 @@ def convert_Target_to_Instance(tgt:Target,
         label_id=sentiment+1, token_to_orig_map=token_to_orig_map,
         sentence=sentence_from_tokens, we_indices=None)
 
+def get_entity_pos(doc_sentence, doc_entity):
+    ls, le = len(doc_sentence), len(doc_entity)
+    for i in range(ls):
+        if doc_sentence[i:i+le].text == doc_entity.text:
+            return list(range(i, i+le))
 
 # Return a list of InstanceFeatures. One InstanceFeature for each sentence.
-def preprocess_cpc(file_path, bert_version):
+def preprocess_cpc(file_path, bert_version, pretokenizer):
 
     # return values
     cpc_data_features = []
@@ -75,22 +79,45 @@ def preprocess_cpc(file_path, bert_version):
             entityA = row['object_a']
             entityB = row['object_b']
 
-            tokenizer_output = tokenizer(sentence)
+            # spacy pretokenization
+            doc = pretokenizer(sentence)
+            token_ids = []
+            token_to_orig_map = {}
+            wp_idx = 1
+            for idx, word in enumerate(doc):
+                # bert word tokenization
+                tokenizer_output = tokenizer(word)
+                token_ids.extend(tokenizer_output['input_ids'][1:-1])
+                # build wp to wd map
+                for _ in tokenizer_output:
+                    token_to_orig_map[wp_idx] = idx
+                    wp_idx += 1
 
-            token_ids = tokenizer_output['input_ids']
-            mask = tokenizer_output['attention_mask']
+            token_ids = [101] + token_ids + [102]
+            mask = [1] * len(token_ids)
+            assert len(token_ids) == wp_idx + 1, "# of wordpieces mismatch"
 
             # keep the special tokens inside the `tokens`
             tokens = tokenizer.convert_ids_to_tokens(token_ids)
             sentence_from_tokens = tokenizer.convert_tokens_to_string(tokens)
-            token_to_orig_map = build_token_to_orig_map(tokens)
+
+            # get entity position
+            docA = pretokenizer(entityA)
+            docB = pretokenizer(entityB)
+            entityA_pos = get_entity_pos(doc, docA)
+            entityB_pos = get_entity_pos(doc, docB)
 
             cpc_data_features.append(
-                InstanceFeatures(task="cpc", sample_id=idx, entityA=entityA,
-                    entityB=entityB, tokens=tokens, token_ids=token_ids,
+                InstanceFeatures(
+                    task="cpc", sample_id=idx, 
+                    entityA=entityA, entityA_pos=entityA_pos, 
+                    entityB=entityB, entityB_pos=entityB_pos,
+                    tokens=tokens, token_ids=token_ids,
                     token_mask=mask, label=label, label_id=LABEL2ID[label],
                     token_to_orig_map=token_to_orig_map, 
-                    sentence=sentence_from_tokens, we_indices=None))
+                    sentence=sentence_from_tokens, sentence_raw=sentence,
+                    we_indices=None
+                ))
 
     return cpc_data_features
 
@@ -250,13 +277,15 @@ if __name__ == "__main__":
     else:
         print("[preprocess] gpu resource unavailable, using cpu")
 
+    nlp = en_core_web_trf.load()
+    tkn = nlp.tokenizer
 
     # whether to re-process CPC data from raw input files
     if args.process_cpc_instances:
         # preprocess cpc
         print("[preprocess] processing cpc data ...")
-        cpc_trn_data = preprocess_cpc(DATA_DIR + "data.csv", args.bert_version)
-        cpc_tst_data = preprocess_cpc(DATA_DIR + "held-out-data.csv", args.bert_version)
+        cpc_trn_data = preprocess_cpc(DATA_DIR + "data.csv", args.bert_version, tkn)
+        cpc_tst_data = preprocess_cpc(DATA_DIR + "held-out-data.csv", args.bert_version, tkn)
 
         # dump data
         print("[preprocess] dumping processed cpc/absa instances to {}.".format(DATA_DIR))
@@ -302,13 +331,8 @@ if __name__ == "__main__":
         absa_bert_emb = preprocess_bert_embedding(absa_data, bert, use_gpu)
         dump_pickle(DATA_DIR+"absa_bert_emb.pkl", absa_bert_emb)
 
-    if args.generate_glove_emb or args.generate_dep_graph:
-        """do NOT load it unless needed"""
-        nlp = en_core_web_trf.load()
-
     if args.generate_glove_emb:
         print("[preprocess] generating GLOVE embedding ...")
-        tkn = nlp.tokenizer
 
         glove_path = "./data/glove/glove.6B.{}d.word2vec_format.txt".format(
             args.glove_dimension)
