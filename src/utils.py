@@ -215,16 +215,26 @@ def wordpiece2word(emb, wp2wd, use_gpu):
 # This method takes a list of pytorch tensor and returns a list of padded tensors and the mex_length
 # Ex: [[53, 768], [12, 768]] -> [[53, 768], [53, 768]], 53
 
-def dynamic_padding(tensor_list):
+def dynamic_padding(tensor_list, length = None):
     """[not used]"""
     padded_list = []
+
+    if length is not None:
+        for tensor in tensor_list:
+            pad_len = length - tensor.shape[0]
+            padding = ConstantPad2d((0, 0, 0, pad_len), 0)
+            padded_list.append(padding(tensor))
+
+        return padded_list, length
+
+
     tensor_lengths = [x.shape[0] for x in tensor_list]
     max_length = max(tensor_lengths)
 
     for tensor in tensor_list:
         pad_len = max_length - tensor.shape[0]
         padding = ConstantPad2d((0, 0, 0, pad_len), 0)
-        padded_list.append(padding())
+        padded_list.append(padding(tensor))
 
     return padded_list, max_length
 

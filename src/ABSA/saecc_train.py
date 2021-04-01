@@ -11,7 +11,7 @@ from ABSA.models.aen import CrossEntropyLoss_LSR
 
 
 class SAECC_ABSA:
-    def __init__(self, train_path, batch_size):
+    def __init__(self, batch_size):
 
         # Initialize params
         parser = argparse.ArgumentParser()
@@ -44,27 +44,26 @@ class SAECC_ABSA:
         opt = parser.parse_args()
         opt.batch_size = batch_size
         opt.model_class = LCFS_BERT
-        opt.dataset_file = {
-                'train': train_path,
-                'test': train_path
-            }
-        opt.inputs_cols = ['text_bert_indices', 'bert_segments_ids', 'text_raw_bert_indices', 'aspect_bert_indices',
-                          'dep_distance_to_aspect']
+        opt.inputs_cols = ['bert_embedding', 'text_raw_bert_indices', 'aspect_bert_indices',
+                           'dep_distance_to_aspect', 'polarity']
         opt.initializer = torch.nn.init.xavier_normal
         opt.optimizer = torch.optim.Adam
         opt.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
         self.opt = opt
 
-
         # Initialize model
         tokenizer = BertTokenizer.from_pretrained(opt.pretrained_bert_name)
         transformer = BertModel.from_pretrained(opt.pretrained_bert_name, output_attentions=True)
         tokenizer = Tokenizer4Pretrain(tokenizer, opt.max_seq_len)
+        self.tokenizer = tokenizer
         self.model = opt.model_class(transformer, opt).to(opt.device)
-        self.trainset = ABSADataset(opt.dataset_file['train'], tokenizer)
 
         self.model.train()
+
+        self.n_correct = 0
+        self.n_total = 0
+        self.loss_total = 0
 
 
     # def _train(self, criterion, optimizer, train_data_loader):
@@ -96,9 +95,6 @@ class SAECC_ABSA:
     #         yield (outputs, train_loss * 100)
 
     def _train_batch(self, criterion, optimizer, sample_batched):
-        n_correct, n_total, loss_total = 0, 0, 0
-
-        print(type(sample_batched))
 
         # clear gradient accumulators
         optimizer.zero_grad()
@@ -108,15 +104,19 @@ class SAECC_ABSA:
         targets = sample_batched['polarity'].to(self.opt.device)
 
         loss = criterion(outputs, targets)
-        # loss.backward()
-        # optimizer.step()
+        loss.backward()
+        optimizer.step()
 
-        n_correct += (torch.argmax(outputs, -1) == targets).sum().item()
-        n_total += len(outputs)
-        loss_total += loss.item() * len(outputs)
-        train_loss = loss_total / n_total
+        self.n_correct += (torch.argmax(outputs, -1) == targets).sum().item()
+        self.n_total += len(outputs)
+        self.loss_total += loss.item() * len(outputs)
+        train_loss = self.loss_total / self.n_total
+        train_acc = self.n_correct / self.n_total
+        print('loss: {:.4f}, acc: {:.4f}'.format(train_loss * 100, train_acc * 100))
+        return outputs, train_loss * 100
 
-        return (outputs, train_loss * 100)
+    def reset_stats(self):
+        self.n_correct = self.n_total = self.loss_total = 0
 
     def _reset_params(self):
         for child in self.model.children():
@@ -144,17 +144,25 @@ class SAECC_ABSA:
     #     for each_batch in self._train(criterion, optimizer, train_data_loader):
     #         yield each_batch
 
-    def run_batch(self):
+
+    def run_batch(self, batch_data):
+
+        """
+
+        :param batch_data: A list of batch_size elements. Each elements in the form of [embedding, instanceFeature]
+        :return:
+        """
+
         criterion = nn.CrossEntropyLoss()
         if self.opt.lsr:
             criterion = CrossEntropyLoss_LSR(self.opt.device)
         _params = filter(lambda p: p.requires_grad, self.model.parameters())
         optimizer = self.opt.optimizer(_params, lr=self.opt.learning_rate, weight_decay=self.opt.l2reg)
-
-        train_data_loader = DataLoader(dataset=self.trainset, batch_size=self.opt.batch_size, shuffle=True)
+        trainset = ABSADataset(batch_data, self.tokenizer)
+        train_data_loader = DataLoader(dataset=trainset, batch_size=self.opt.batch_size, shuffle=False)
 
         for each in train_data_loader:
-            yield self._train_batch(criterion, optimizer, each)
+            return self._train_batch(criterion, optimizer, each)
 
 
 

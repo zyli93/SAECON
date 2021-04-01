@@ -150,7 +150,7 @@ class Tokenizer4Pretrain:
 
 
 class ABSADataset(Dataset):
-    def __init__(self, instance_path, embedding_path, tokenizer):
+    def __init__(self, inputs, tokenizer):
 
         all_data = []
 
@@ -190,16 +190,35 @@ class ABSADataset(Dataset):
 
         # for using bert embeddings as input
 
-        with open(embedding_path, "rb") as fin:
-            all_embeddings = pickle.load(fin)
+        for each_sent in inputs:
 
-        with open(instance_path, "rb") as fin:
-            all_instance = pickle.load(fin)
+            bert_embedding = each_sent[0]
+            instance_feature = each_sent[1]
+            entity_A, _ = instance_feature.get_entities()
+            polarity = instance_feature.get_label_id()
 
+            text_raw_bert_indices = tokenizer.text_to_sequence(tokenizer.cls_token + ' ' + instance_feature.sentence
+                                                           + ' ' + tokenizer.sep_token)
+            aspect_bert_indices = tokenizer.text_to_sequence(tokenizer.cls_token + ' ' + entity_A
+                                                             + '' '' + tokenizer.sep_token)
+            raw_tokens, dist = calculate_dep_dist(instance_feature.sentence, entity_A)
+            raw_tokens.insert(0, tokenizer.cls_token)
+            dist.insert(0, 0)
+            raw_tokens.append(tokenizer.sep_token)
+            dist.append(0)
 
+            _, dep_distance_to_aspect = tokenizer.tokenize(raw_tokens, dist)
 
+            data = {
+                'bert_embedding': bert_embedding,
+                'text_raw_bert_indices': text_raw_bert_indices,
+                'aspect_bert_indices': aspect_bert_indices,
+                'dep_distance_to_aspect': dep_distance_to_aspect,
+                'polarity': polarity
+            }
 
             all_data.append(data)
+
         self.data = all_data
 
     def __getitem__(self, index):

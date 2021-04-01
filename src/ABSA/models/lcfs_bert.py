@@ -146,45 +146,57 @@ class LCFS_BERT(nn.Module):
 
 
     def forward(self, inputs, output_attentions = False):
-        text_bert_indices = inputs[0]
-        bert_segments_ids = inputs[1]
-        text_local_indices = inputs[2] # Raw text without adding aspect term
-        aspect_indices = inputs[3] # Raw text of aspect
-        distances = inputs[4]
-        #distances = None
-
-        spc_out = self.bert_spc(text_bert_indices, bert_segments_ids)
-        bert_spc_out = spc_out[0]
-        print(bert_spc_out.shape)
-        spc_att = spc_out[-1][-1]
-        #bert_spc_out = self.bert_g_sa(bert_spc_out)
-        #bert_spc_out = self.dropout(bert_spc_out)
-        #bert_spc_out = self.bert_g_pct(bert_spc_out)
-        #bert_spc_out = self.dropout(bert_spc_out)
-
-        bert_local_out = self.bert_local(text_local_indices)[0]
-        #bert_local_out = self.bert_local_sa(bert_local_out)
-        #bert_local_out = self.dropout(bert_local_out)
-        #bert_local_out = self.bert_local_pct(bert_local_out)
-        #bert_local_out = self.dropout(bert_local_out)
+        bert_embedding = inputs[0]
+        text_local_indices = inputs[1]
+        aspect_indices = inputs[2]
+        distances = inputs[3]
+        bert_local_out = bert_embedding
 
         if self.opt.local_context_focus == 'cdm':
-            masked_local_text_vec = self.feature_dynamic_mask(text_local_indices, aspect_indices,distances)
+            masked_local_text_vec = self.feature_dynamic_mask(text_local_indices, aspect_indices, distances)
             bert_local_out = torch.mul(bert_local_out, masked_local_text_vec)
 
         elif self.opt.local_context_focus == 'cdw':
-            weighted_text_local_features = self.feature_dynamic_weighted(text_local_indices, aspect_indices,distances)
+            weighted_text_local_features = self.feature_dynamic_weighted(text_local_indices, aspect_indices, distances)
             bert_local_out = torch.mul(bert_local_out, weighted_text_local_features)
 
-        print(bert_local_out.shape)
-        #bert_local_out = self.bert_local_sa(bert_local_out)
-        out_cat = torch.cat((bert_local_out, bert_spc_out), dim=-1)
-        print(out_cat.shape)
+        out_cat = torch.cat((bert_local_out, bert_embedding), dim=-1)
         mean_pool = self.mean_pooling_double(out_cat)
         self_attention_out, local_att = self.bert_sa(mean_pool)
         pooled_out = self.bert_pooler(self_attention_out)
         dense_out = self.dense(pooled_out)
-        print(dense_out)
-        if output_attentions:
-            return (dense_out,spc_att,local_att)
         return dense_out
+
+        # text_bert_indices = inputs[0]
+        # bert_segments_ids = inputs[1]
+        # text_local_indices = inputs[2] # Raw text without adding aspect term
+        # aspect_indices = inputs[3] # Raw text of aspect
+        # distances = inputs[4]
+        #
+        # spc_out = self.bert_spc(text_bert_indices, bert_segments_ids)
+        # bert_spc_out = spc_out[0]
+        # print(bert_spc_out.shape)
+        # spc_att = spc_out[-1][-1]
+        #
+        # bert_local_out = self.bert_local(text_local_indices)[0]
+        #
+        # if self.opt.local_context_focus == 'cdm':
+        #     masked_local_text_vec = self.feature_dynamic_mask(text_local_indices, aspect_indices,distances)
+        #     bert_local_out = torch.mul(bert_local_out, masked_local_text_vec)
+        #
+        # elif self.opt.local_context_focus == 'cdw':
+        #     weighted_text_local_features = self.feature_dynamic_weighted(text_local_indices, aspect_indices,distances)
+        #     bert_local_out = torch.mul(bert_local_out, weighted_text_local_features)
+        #
+        # print(bert_local_out.shape)
+        # #bert_local_out = self.bert_local_sa(bert_local_out)
+        # out_cat = torch.cat((bert_local_out, bert_spc_out), dim=-1)
+        # print(out_cat.shape)
+        # mean_pool = self.mean_pooling_double(out_cat)
+        # self_attention_out, local_att = self.bert_sa(mean_pool)
+        # pooled_out = self.bert_pooler(self_attention_out)
+        # dense_out = self.dense(pooled_out)
+        # print(dense_out)
+        # if output_attentions:
+        #     return (dense_out,spc_att,local_att)
+        # return dense_out
