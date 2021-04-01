@@ -200,7 +200,6 @@ def preprocess_depgraph(instance_features, lang_parser):
         depg_dict - Dict[idx, depgraph]. 
     """
     all_depgraph = {}
-    # nlp = en_core_web_trf.load()
 
     sentences = [ins.sentence for ins in instance_features]
     docs = lang_parser.pipe(sentences, disable=['tagger', 'ner'])
