@@ -69,7 +69,7 @@ def pretoken2token(doc, bert_tokenizer):
     wp_idx = 1
     for wd_idx, word in enumerate(doc):
         # bert word tokenization
-        tokenizer_output = bert_tokenizer(word, add_special_tokens=False)
+        tokenizer_output = bert_tokenizer(word.text, add_special_tokens=False)
         token_ids.extend(tokenizer_output['input_ids'])
         # build wp to wd map
         for _ in tokenizer_output['input_ids']:

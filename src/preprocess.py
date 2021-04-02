@@ -5,6 +5,15 @@
         Anon <anon@anon.anon>
     Date created: March 7, 2021
     Python version: 3.6.0+
+    
+    Below is an example command to run this file:
+    ```
+    python src/preprocess.py --gpu_id 1 --process_cpc_instances \
+        --process_absa_instances --generate_bert_emb --generate_glove_emb \
+        --generate_dep_graph
+
+    python src/preprocess.py --generate_dep_graph
+    ```
 """
 
 import sys
@@ -149,7 +158,7 @@ def preprocess_glove_embedding(instance_features, model, tokenizer):
 
     for idx, ins in tqdm(enumerate(instance_features)):
         assert idx == ins.get_sample_id(), "[GLOVE] idx does NOT match sample ID"
-        wd_tokens = tokenizer(ins.sentence)
+        wd_tokens = tokenizer(ins.sentence_raw)
         # each wd is a spacy token, therefore use ".text" to convert to str
         wd_emb = torch.tensor([
             get_embedding(wd.text) for wd in wd_tokens], dtype=torch.float)
@@ -192,17 +201,18 @@ def preprocess_absa(bert_tokenizer, pretokenizer):
 def preprocess_depgraph(instance_features, lang_parser):
     """
     Build dependency graphs for input instances
+    Note: In spacy 3.0, The lemmatizer is a separate component. Please refer to:
+        https://stackoverflow.com/questions/66451577/warning-w108-the-rule-based-lemmatizer-did-not-find-pos-annotation-for-the-to
 
     Args:
         instance_features - list of instance features
-    
     Return:
         depg_dict - Dict[idx, depgraph]. 
     """
     all_depgraph = {}
 
-    sentences = [ins.sentence for ins in instance_features]
-    docs = lang_parser.pipe(sentences, disable=['tagger', 'ner'])
+    sentences = [ins.sentence_raw for ins in instance_features]
+    docs = lang_parser.pipe(sentences, disable=['tagger', 'ner', 'lemmatizer'])
 
     for idx, doc in tqdm(enumerate(docs)):
         edge_index = []
