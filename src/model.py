@@ -15,7 +15,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.utils.rnn import pad_sequence
 
-from module import SGCNConv
+# from module import SGCNConv
+from ABSA.saecc_train import SAECC_ABSA
+from utils import dynamic_padding
 from constants import *
 
 class SaeccModel(nn.Module):
@@ -30,8 +32,42 @@ class SaeccModel(nn.Module):
 
 
 class AbsaPipeline(nn.Module):
-    def __init__(self, args):
-        pass
+    def __init__(self, batch_size):
+        super().__init__()
+
+        self.batch_size = int(batch_size)
+        self.absa = SAECC_ABSA(self.batch_size)
+
+
+    def forward(self, batch):
+        # batch_embedding: a list of tensors, each of shape [sentence length, 768]
+        # batch_instance_feature: a list of instance features that are in the same order as in batch_embedding
+        batch_embedding = batch['embedding']
+        batch_instance_feature = batch['instance_feature']
+
+        assert len(batch_embedding) == len(batch_instance_feature), \
+            "Number of embedding does not match numberof instance features."
+        assert len(batch_embedding) == self.batch_size, "Batch size does not match with batch size."
+
+        # Max sequence length is hardcoded to 80, following original paper setup
+        padded_embedding, _ = dynamic_padding(batch_embedding, 80)
+
+        batch_data = []
+        for i, each_embedding in enumerate(padded_embedding):
+            batch_data.append([each_embedding, batch_instance_feature[i]])
+
+        assert len(batch_data) == self.batch_size, "Final batch input does not match with batch size."
+
+        logits, train_loss = self.absa.run_batch(batch_data)
+
+        return {
+            'logits': logits,
+            'train_loss': train_loss
+        }
+
+    def reset_stats(self):
+        # Call this at the start of each epoch to reset the stats used to calculate loss
+        self.absa.reset_stats()
 
 
 
@@ -50,14 +86,14 @@ class CpcPipeline(nn.Module):
             )
             for d_in, d_out in zip(sgcn_dims[:-1], sgcn_dims[1:])
         ]
-        
+
         # local context
         self.lstm = nn.LSTM(
             input_size=args.embed_dim,
             hidden_size=args.hidden_dim,
             batch_first=True
         )
-    
+
     def forward(self, batch):
         # global context
         depgraph = batch['depgraph']
@@ -107,7 +143,7 @@ class CpcPipeline(nn.Module):
             wordA.append(torch.mean(embedA, dim=0))
             embedB = torch.index_select(seq, 0, posB)
             wordB.append(torch.mean(embedB, dim=0))
-        
+
 
 def FastCpcPipeline(CpcPipeline):
     def _extract_entities(self, batch, node_hidden, word_hidden):
