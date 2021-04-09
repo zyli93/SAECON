@@ -104,8 +104,8 @@ class SAECC_ABSA:
         targets = sample_batched['polarity'].to(self.opt.device)
 
         loss = criterion(outputs, targets)
-        loss.backward()
-        optimizer.step()
+        # loss.backward()
+        # optimizer.step()
 
         self.n_correct += (torch.argmax(outputs, -1) == targets).sum().item()
         self.n_total += len(outputs)
