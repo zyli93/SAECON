@@ -42,12 +42,12 @@ class CpcPipeline(nn.Module):
         sgcn_convs = []
         sgcn_dims = [args.embed_dim] + args.sgcn_dims
         self.sgcn_convs = [
-                SGCNConv(
-                    dim_in=d_in,
-                    dim_out=d_out,
-                    num_labels=len(DEPENDENCY_LABELS),
-                    gating=args.sgcn_gating
-                )
+            SGCNConv(
+                dim_in=d_in,
+                dim_out=d_out,
+                num_labels=len(DEPENDENCY_LABELS),
+                gating=args.sgcn_gating
+            )
             for d_in, d_out in zip(sgcn_dims[:-1], sgcn_dims[1:])
         ]
         
@@ -63,10 +63,10 @@ class CpcPipeline(nn.Module):
         depgraph = batch['depgraph']
         for conv in self.sgcn_convs:
             depgraph.x = conv(
-            x=depgraph.x,
-            edge_index=depgraph.edge_index,
-            edge_label=depgraph.edge_attr
-        )
+                x=depgraph.x,
+                edge_index=depgraph.edge_index,
+                edge_label=depgraph.edge_attr
+            )
         node_hidden = pad_sequence(
             [dg.x for dg in depgraph.to_data_list()],
             batch_first=True
@@ -79,6 +79,16 @@ class CpcPipeline(nn.Module):
         assert node_hidden.shape[0] == word_hidden.shape[0], 'batch size do not match'
         assert node_hidden.shape[1] == word_hidden.shape[1], 'seq_len do not match'
 
+        nodeA, nodeB, wordA, wordB = self._extract_entities(batch, node_hidden, word_hidden)
+
+        return {
+            'nodeA': torch.cat(nodeA),
+            'nodeB': torch.cat(nodeB),
+            'wordA': torch.cat(wordA),
+            'wordB': torch.cat(wordB)
+        }
+
+    def _extract_entities(self, batch, node_hidden, word_hidden):
         # extract entities
         instances = batch['instances']
         entA_pos = [torch.tensor(ins.entityA_pos) for ins in instances]
@@ -98,9 +108,8 @@ class CpcPipeline(nn.Module):
             embedB = torch.index_select(seq, 0, posB)
             wordB.append(torch.mean(embedB, dim=0))
         
-        return {
-            'nodeA': torch.cat(nodeA),
-            'nodeB': torch.cat(nodeB),
-            'wordA': torch.cat(wordA),
-            'wordB': torch.cat(wordB)
-        }
+
+def FastCpcPipeline(CpcPipeline):
+    def _extract_entities(self, batch, node_hidden, word_hidden):
+        # TODO: vectorize
+        pass
