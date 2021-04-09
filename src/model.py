@@ -37,19 +37,19 @@ class AbsaPipeline(nn.Module):
 
 class CpcPipeline(nn.Module):
     def __init__(self, args):
+        super().__init__()
         # global context
         sgcn_convs = []
         sgcn_dims = [args.embed_dim] + args.sgcn_dims
-        for d_in, d_out in zip(sgcn_dims[:-1], sgcn_dims[1:]):
-            sgcn_convs.append(
+        self.sgcn_convs = [
                 SGCNConv(
                     dim_in=d_in,
                     dim_out=d_out,
                     num_labels=len(DEPENDENCY_LABELS),
                     gating=args.sgcn_gating
                 )
-            )
-        self.sgcn_convs = nn.Sequential(*sgcn_convs)
+            for d_in, d_out in zip(sgcn_dims[:-1], sgcn_dims[1:])
+        ]
         
         # local context
         self.lstm = nn.LSTM(
@@ -61,7 +61,8 @@ class CpcPipeline(nn.Module):
     def forward(self, batch):
         # global context
         depgraph = batch['depgraph']
-        depgraph.x = self.sgcn_convs(
+        for conv in self.sgcn_convs:
+            depgraph.x = conv(
             x=depgraph.x,
             edge_index=depgraph.edge_index,
             edge_label=depgraph.edge_attr
@@ -73,7 +74,7 @@ class CpcPipeline(nn.Module):
 
         # local context
         word_embedding = batch['embedding']
-        word_hidden = self.lstm(word_embedding)
+        word_hidden = self.lstm(word_embedding)[0]
 
         assert node_hidden.shape[0] == word_hidden.shape[0], 'batch size do not match'
         assert node_hidden.shape[1] == word_hidden.shape[1], 'seq_len do not match'
