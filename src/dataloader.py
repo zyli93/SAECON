@@ -74,8 +74,8 @@ class DataLoader():
         self.cpc_trn = load_pickle(DATA_DIR+"processed_cpc_train.pkl")
         self.cpc_tst = load_pickle(DATA_DIR+"processed_cpc_test.pkl")
         self.absa = load_pickle(DATA_DIR+"processed_absa.pkl")
-        self.cpc_trn_depg = load_pickle(DATA_DIR+"cpc_trn_depg.pkl")
-        self.cpc_tst_depg = load_pickle(DATA_DIR+"cpc_tst_depg.pkl")
+        self.cpc_trn_depg = load_pickle(DATA_DIR+"cpc_train_depgraph.pkl")
+        self.cpc_tst_depg = load_pickle(DATA_DIR+"cpc_test_depgraph.pkl")
 
         self.absa_len = len(self.absa)
 
@@ -170,9 +170,9 @@ class DataLoader():
         trn_indices, val_indices = [], []
         trn_counts, val_counts = [], []
         for ins in self.cpc_trn:
-            indices[ins.get_label_id()].append(ins.get_sample_id)
+            indices[ins.get_label_id()].append(ins.get_sample_id())
         for label in [0,1,2]:
-            trn_idx, val_idx = train_test_split(indices[label], VAL_RATIO)
+            trn_idx, val_idx = train_test_split(indices[label], test_size=VAL_RATIO)
             trn_indices.extend(trn_idx)
             val_indices.extend(val_idx)
             trn_counts.append(len(trn_idx))
