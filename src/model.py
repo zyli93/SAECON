@@ -22,6 +22,7 @@ from constants import *
 
 class SaeccModel(nn.Module):
     def __init__(self, args):
+        self().__init__()
         self.cpc_pipeline = CpcPipeline(args)
         self.absa_pipeline = AbsaPipeline(args)
 
