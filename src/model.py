@@ -15,29 +15,40 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.utils.rnn import pad_sequence
 
-# from module import SGCNConv
+from module import SGCNConv
 from ABSA.saecc_train import SAECC_ABSA
 from utils import dynamic_padding
 from constants import *
 
 class SaeccModel(nn.Module):
     def __init__(self, args):
-        # TODO: to be done
-        
-        pass
+        self.cpc_pipeline = CpcPipeline(args)
+        self.absa_pipeline = AbsaPipeline(args)
 
-    def forward(self, ):
-        # TODO: to be done
-        pass
+        hidden_dim = self.cpc_pipeline.output_dim + self.absa_pipeline.output_dim
+        self.linear = nn.Linear(hidden_dim, 3)
+
+    def forward(self, batch):
+        hidden_cpc = self.cpc_pipeline(batch)
+        hidden_absa = self.absa_pipeline(batch)
+
+        hidden_agg = torch.cat(hidden_cpc.values())
+        hidden_agg = torch.cat([hidden_agg, hidden_absa['logits']])
+        
+        logits = nn.linear(hidden_agg)
+        return logits
 
 
 class AbsaPipeline(nn.Module):
     def __init__(self, batch_size):
+        # TODO: argument to args
         super().__init__()
 
         self.batch_size = int(batch_size)
         self.absa = SAECC_ABSA(self.batch_size)
 
+        # TODO: save output_dim for saecc
+        self.output_dim = None
 
     def forward(self, batch):
         # batch_embedding: a list of tensors, each of shape [sentence length, 768]
@@ -93,6 +104,8 @@ class CpcPipeline(nn.Module):
             hidden_size=args.hidden_dim,
             batch_first=True
         )
+
+        self.output_dim = (args.hidden_dim + args.sgcn_dims) * 2
 
     def forward(self, batch):
         # global context
