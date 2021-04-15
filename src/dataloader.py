@@ -6,9 +6,6 @@
 
     Date created: March 11, 2020
     Python version: 3.6.0
-
-    TODO:
-    1. preprocess sentence embedding for cpc and absa
 """
 
 import numpy as np
@@ -23,6 +20,7 @@ from utils import reverse_instance
 CPC = "CPC"
 ABSA = "ABSA"
 VAL_RATIO = 0.2
+BATCH_TENSORS = ['embedding', 'depgraph']
 
 class DataLoader():
     def __init__(self, args):

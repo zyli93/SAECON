@@ -7,6 +7,7 @@ import numpy as np
 from datetime import datetime
 from scipy.sparse import coo_matrix
 from sklearn.preprocessing import normalize
+from sklearn.metrics import f1_score
 
 """
     Utililty files for SAECC
@@ -26,6 +27,11 @@ REV_LABEL = {
 }
 
 LABEL2ID = {"BETTER": 0, "WORSE": 1, "NONE": 2}
+ID2LABEL = {v: k for k, v in LABEL2ID.items()}
+
+ASBA_LABELS = {"-1": 0, "0": 1, "1": 2}
+ID2LABEL_ABSA = {0: "NEG", 1: "NEU", 2: "POS"}
+LABELS = [0, 1, 2]
 
 def load_pickle(path):
     """ load pickle object from file """
@@ -279,10 +285,26 @@ def reverse_instance(ins, sample_id):
     entityB, entityA = ins.get_entities()
     entityB_pos, entityA_pos = ins.get_entity_positions()
     rev_label = REV_LABEL[ins.get_label()]
-    return InstanceFeatures(task=ins.get_task(), sample_id=sample_id,
-        tokens=ins.get_tokens(), entityA=entityA, entityB=entityB, 
-        entityA_pos=entityA_pos, entityB_pos=entityB_pos,
-        token_ids=ins.get_token_ids(), token_mask=ins.get_token_mask(),
-        label=rev_label, label_id=LABEL2ID[rev_label],
-        token_to_orig_map=ins.get_token_to_orig_map(), sentence=ins.get_sentence(),
-        sentence_raw=ins.get_sentence_raw(), we_indices=None)
+    return InstanceFeatures(
+        task=ins.get_task(), 
+        sample_id=sample_id,
+        tokens=ins.get_tokens(), 
+        entityA=entityA, 
+        entityB=entityB, 
+        entityA_pos=entityA_pos, 
+        entityB_pos=entityB_pos,
+        token_ids=ins.get_token_ids(), 
+        token_mask=ins.get_token_mask(),
+        label=rev_label, 
+        label_id=LABEL2ID[rev_label],
+        token_to_orig_map=ins.get_token_to_orig_map(), 
+        sentence=ins.get_sentence(),
+        sentence_raw=ins.get_sentence_raw(), 
+        we_indices=None)
+
+
+def eval_metric(y_true, y_pred, labels):
+    each_class_f1 = f1_score(y_true, y_pred, lables=labels, average=None)
+    metric_dict = dict(zip(labels, each_class_f1))
+    metric_dict["micro"] = f1_score(y_true, y_pred, average=None)
+    return metric_dict
