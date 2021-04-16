@@ -120,8 +120,7 @@ class Tokenizer4Pretrain:
         self.max_seq_len = max_seq_len
 
     def text_to_sequence(self, text, reverse=False, padding='post', truncating='post'):
-        # sequence = self.tokenizer.convert_tokens_to_ids(self.tokenizer.tokenize(text))
-        sequence = self.tokenizer(text)['input_ids']
+        sequence = self.tokenizer.convert_tokens_to_ids(self.tokenizer.tokenize(text))
         if len(sequence) == 0:
             sequence = [0]
         if reverse:
@@ -191,19 +190,17 @@ class ABSADataset(Dataset):
 
         # for using bert embeddings as input
 
-        # TODO: add handling of entity_B
-
         for each_sent in inputs:
 
             bert_embedding = each_sent[0]
             instance_feature = each_sent[1]
             entity_A, _ = instance_feature.get_entities()
-            # polarity = instance_feature.get_label_id()
+            polarity = instance_feature.get_label_id()
 
             text_raw_bert_indices = tokenizer.text_to_sequence(tokenizer.cls_token + ' ' + instance_feature.sentence
                                                            + ' ' + tokenizer.sep_token)
             aspect_bert_indices = tokenizer.text_to_sequence(tokenizer.cls_token + ' ' + entity_A
-                                                             + ' ' + tokenizer.sep_token)
+                                                             + '' '' + tokenizer.sep_token)
             raw_tokens, dist = calculate_dep_dist(instance_feature.sentence, entity_A)
             raw_tokens.insert(0, tokenizer.cls_token)
             dist.insert(0, 0)
@@ -217,7 +214,7 @@ class ABSADataset(Dataset):
                 'text_raw_bert_indices': text_raw_bert_indices,
                 'aspect_bert_indices': aspect_bert_indices,
                 'dep_distance_to_aspect': dep_distance_to_aspect,
-                # 'polarity': polarity
+                'polarity': polarity
             }
 
             all_data.append(data)
@@ -229,17 +226,8 @@ class ABSADataset(Dataset):
 
     def __len__(self):
         return len(self.data)
-
-
-
 nlp = spacy.load("en_core_web_sm")
-
 def calculate_dep_dist(sentence,aspect):
-    """
-    compute the smallest distance on dep-graph from any token (tokenized by spaCy)
-    in the sentence to the aspect
-    """
-    # TODO: absa + dependency parsing
     terms = [a.lower() for a in aspect.split()]
     doc = nlp(sentence)
     # Load spacy's dependency tree into a networkx graph

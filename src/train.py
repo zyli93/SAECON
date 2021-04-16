@@ -37,7 +37,7 @@ def get_optimizer_and_scheduler(args, task, model):
         params, lr=lr, weight_decay=args.reg_weight)
 
     # create scheduler, if not scheduler, return None
-    if not args.use_lr_scheduler:
+    if args.use_lr_scheduler:
         scheduler = optim.lr_scheduler.StepLR(
             optimizer, 
             step_size=args.scheduler_stepsize, 
@@ -200,13 +200,11 @@ def train(args, use_gpu, model, dataloader):
 
         # run validation
         if ep % args.eval_per_ep and ep >= args.eval_after_epnum - 1:
-            prec, recall, f1 = evaluate(model, for_test=False,
+            perf_msg = evaluate(model, for_test=False,
                 dataloader=dataloader.get_batch_testval(False), 
                 restore_model_path=None)
-            msg = compose_msg()
-            # TODO: change compose msg to add pred/recall/f1
-            logging.info("[val] "+msg)
-            print(f"{get_time()} [Perf][val] {msg}")
+            logging.info(f"[Perf-CPC][val][epoch]{ep} {perf_msg}")
+            print(f"{get_time()} [Perf-CPC][val][epoch]{ep} {msg}")
 
         # save model
         if args.save_model and not ep % args.save_per_ep \
@@ -217,7 +215,18 @@ def train(args, use_gpu, model, dataloader):
             print(f"{get_time()} [save] saving model: {model_name}")
 
 
-def evaluate(model, for_test, dataloader, restore_model_path, use_gpu):
+def evaluate(model, data_iter, restore_model_path, use_gpu, for_test):
+    """
+    Run validation or test, return a performance msg in metrics
+    Args:
+        model - the model
+        data_iter - the data iterator for test/val data
+        restore_model_path - the path to restore the current model
+        use_gpu - whether the model & tensors are on gpu
+        for_test - True for testing, False for validation
+    Return:
+        perf_msg - performance message composed by `compose_metric_perf_msg`
+    """
     model.eval()
     predictions, groundtruths = [], []
     use_gpu = use_gpu and torch.cuda.is_available()
@@ -230,7 +239,7 @@ def evaluate(model, for_test, dataloader, restore_model_path, use_gpu):
         model.load_state_dict(torch.load(restore_model_path))
 
     with torch.no_grad():
-        for i, eval_batch in enumerate(dataloader):
+        for i, eval_batch in enumerate(data_iter):
             if use_gpu:
                 batch = move_batch_to_gpu(batch)
             eval_pred = model(batch)
@@ -245,8 +254,8 @@ def evaluate(model, for_test, dataloader, restore_model_path, use_gpu):
         groundtruths = np.concatenate(groundtruths)
         metric_dict = compute_metrics(use_gpu, predictions, groundtruths)
         perf_msg = compose_metric_perf_msg(metric_dict)
-        logging.info(f"[Perf][CPC][{task}] " + perf_msg)
-        print(f"{get_time()} [Perf][CPC][{task}] " + perf_msg)
+    
+    return perf_msg
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -353,7 +362,9 @@ if __name__ == "__main__":
     if args.task == "train":
         train(args, use_gpu, model, dataloader)
     elif args.task == "test":
+        # TODO: fix here!
         evaluate(model, dataloader=dataloader.get_batch_testval(for_test=True),
             restore_model_path=args.load_model_path)
+        # TODO: add printing performance
     else:
         raise ValueError("args.task can only be train or test")

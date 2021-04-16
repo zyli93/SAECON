@@ -9,16 +9,25 @@
 
     # TODO: add index attribute to InstanceFeature
 """
-
+import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.utils.rnn import pad_sequence
 
+from torch.utils.data import DataLoader as TorchDataLoader
+
 from module import SGCNConv
+
 from ABSA.saecc_train import SAECC_ABSA
-from utils import dynamic_padding
+from ABSA.models import LCFS_BERT
+from ABSA.data_utils import Tokenizer4Pretrain  # TODO: need this?
+from ABSA.data_utils import ABSADataset  # TODO: need this?
+
+from utils import dynamic_padding, pad_or_trunc_to_fixlength
 from constants import *
+from transformers import BertTokenizer, BertModel
+from transformers.modeling_bert import BertPooler, BertSelfAttention, BertConfig
 
 class SaeccModel(nn.Module):
     def __init__(self, args):
@@ -29,7 +38,10 @@ class SaeccModel(nn.Module):
         hidden_dim = self.cpc_pipeline.output_dim + self.absa_pipeline.output_dim
         self.linear = nn.Linear(hidden_dim, 3)
 
+        self._reset_params()
+
     def forward(self, batch):
+        # TODO: Differentiate cpc and absa!
         hidden_cpc = self.cpc_pipeline(batch)
         hidden_absa = self.absa_pipeline(batch)
 
@@ -39,47 +51,100 @@ class SaeccModel(nn.Module):
         logits = nn.linear(hidden_agg)
         return logits
 
+    # TODO: add initialization code!
+    def _reset_params(self):
+        initializer = torch.nn.init.xavier_normal
+        for child in self.model.children():
+            if type(child) == BertModel:  # skip bert params
+                continue
+            for p in child.parameters():
+                if p.requires_grad:
+                    if len(p.shape) > 1:
+                        initializer(p)
+                    else:
+                        stdv = 1. / math.sqrt(p.shape[0])
+                        torch.nn.init.uniform_(p, a=-stdv, b=stdv)
+
 
 class AbsaPipeline(nn.Module):
-    def __init__(self, batch_size):
-        # TODO: argument to args
+    def __init__(self, args):
         super().__init__()
 
+        """
+        # TODO: argument to args
         self.batch_size = int(batch_size)
         self.absa = SAECC_ABSA(self.batch_size)
 
         # TODO: save output_dim for saecc
         self.output_dim = None
+        """
+
+        # === New code ===
+        # TODO: fix opt:
+        #   pretrained_bert_name: bert-based-cased
+        #   max_seq_len: (default=80)
+        #   input_cols
+        # TODO: args: add absa_max_seq_len
+        self.max_seq_len = args.absa_max_seq_len
+        opt.inputs_cols = ['bert_embedding', 'text_raw_bert_indices', 'aspect_bert_indices',
+                           'dep_distance_to_aspect', 'polarity']
+
+        transformer = BertModel.from_pretrained(
+            opt.pretrained_bert_name, output_attentions=True)
+
+        tokenizer = BertTokenizer.from_pretrained(opt.pretrained_bert_name)
+        tokenizer = Tokenizer4Pretrain(tokenizer, opt.max_seq_len)
+        self.tokenizer = tokenizer
+        self.model = LCFS_BERT(transformer, opt)
+
+        # TODO: figure out what's done here.
+        _params = filter(lambda p: p.requires_grad, self.model.parameters())
+
 
     def forward(self, batch):
-        # batch_embedding: a list of tensors, each of shape [sentence length, 768]
-        # batch_instance_feature: a list of instance features that are in the same order as in batch_embedding
+        """
+        batch_embedding: 
+          a list of tensors, each of shape [sentence length, 768]
+        batch_instance_feature: 
+          a list of instance features that are in the same order as in batch_embedding
+        """
         batch_embedding = batch['embedding']
         batch_instance_feature = batch['instance_feature']
 
-        assert len(batch_embedding) == len(batch_instance_feature), \
-            "Number of embedding does not match numberof instance features."
-        assert len(batch_embedding) == self.batch_size, "Batch size does not match with batch size."
-
         # Max sequence length is hardcoded to 80, following original paper setup
-        padded_embedding, _ = dynamic_padding(batch_embedding, 80)
+        # TODO: set to 80
+        padded_embedding = pad_or_trunc_to_fixlength(
+            batch_embedding, length=self.max_seq_len)
 
+        # Now: padded_embedding (batch_size, args.absa_max_seq_len)
         batch_data = []
         for i, each_embedding in enumerate(padded_embedding):
             batch_data.append([each_embedding, batch_instance_feature[i]])
 
-        assert len(batch_data) == self.batch_size, "Final batch input does not match with batch size."
+        assert len(batch_data) == self.batch_size, \
+            "Final batch input does not match with batch size."
 
-        logits, train_loss = self.absa.run_batch(batch_data)
+        trainset = ABSADataset(batch_data, self.tokenizer)
+        train_data_loader = TorchDataLoader(dataset=trainset, 
+            batch_size=self.opt.batch_size, shuffle=False)
+        
+        # TODO: what's in dataloader?
 
-        return {
-            'logits': logits,
-            'train_loss': train_loss
-        }
+        for each in train_data_loader:
+            # inputs to dictionary
+            # inputs = [each[col].to(self.opt.device) for col in self.opt.inputs_cols]
+            # TODO: move these stuff to device
+            inputs = {k: each[k] for k in self.opt.input_cols}
 
-    def reset_stats(self):
-        # Call this at the start of each epoch to reset the stats used to calculate loss
-        self.absa.reset_stats()
+            # TODO: feature and logits
+            outputs = self.model(inputs)
+            
+            # TODO: collect outputs
+        
+        inputs = {}  # TODO
+        outputs = self.model(inputs)  # TODO: two results
+
+        return outputs  # TODO: dimension of outputs
 
 
 

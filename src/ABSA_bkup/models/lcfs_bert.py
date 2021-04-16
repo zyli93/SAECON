@@ -8,7 +8,7 @@ import torch.nn as nn
 import copy
 import numpy as np
 
-from transformers.modeling_bert import BertPooler, BertSelfAttention, BertConfig
+from pytorch_transformers.modeling_bert import BertPooler, BertSelfAttention, BertConfig
 
 class PointwiseFeedForward(nn.Module):
     ''' A two-feed-forward-layer module '''
@@ -52,18 +52,17 @@ class LCFS_BERT(nn.Module):
             hidden = model.config.hidden_size
         elif 'xlnet' in opt.pretrained_bert_name:
             hidden = model.config.d_model
-
         self.hidden = hidden
         sa_config = BertConfig(hidden_size=self.hidden,output_attentions=True)
 
-        # self.bert_spc = model
-        # self.bert_g_sa = SelfAttention(sa_config,opt)
-        # self.bert_g_pct = PointwiseFeedForward(self.hidden)
+        self.bert_spc = model
+        self.bert_g_sa = SelfAttention(sa_config,opt)
+        self.bert_g_pct = PointwiseFeedForward(self.hidden)
 
         self.opt = opt
-        # self.bert_local = copy.deepcopy(model)
-        # self.bert_local_sa = SelfAttention(sa_config,opt)
-        # self.bert_local_pct = PointwiseFeedForward(self.hidden)
+        self.bert_local = copy.deepcopy(model)
+        self.bert_local_sa = SelfAttention(sa_config,opt)
+        self.bert_local_pct = PointwiseFeedForward(self.hidden)
 
         self.dropout = nn.Dropout(opt.dropout)
         self.bert_sa = SelfAttention(sa_config,opt)
@@ -74,7 +73,6 @@ class LCFS_BERT(nn.Module):
         self.dense = nn.Linear(hidden, opt.polarities_dim)
 
     def feature_dynamic_mask(self, text_local_indices, aspect_indices,distances_input=None):
-        # TODO: why there are cpu?
         texts = text_local_indices.cpu().numpy() # batch_size x seq_len
         asps = aspect_indices.cpu().numpy() # batch_size x aspect_len
         if distances_input is not None:
@@ -106,7 +104,6 @@ class LCFS_BERT(nn.Module):
 
         masked_text_raw_indices = torch.from_numpy(masked_text_raw_indices)
         return masked_text_raw_indices.to(self.opt.device)
-        # TODO: fix devices issues
 
     def feature_dynamic_weighted(self, text_local_indices, aspect_indices,distances_input=None):
         texts = text_local_indices.cpu().numpy()
@@ -146,28 +143,21 @@ class LCFS_BERT(nn.Module):
 
         masked_text_raw_indices = torch.from_numpy(masked_text_raw_indices)
         return masked_text_raw_indices.to(self.opt.device)
-        # TODO: fix devices issues
 
 
     def forward(self, inputs, output_attentions = False):
-        bert_embedding = inputs["bert_embedding"]
-        text_local_indices = inputs['text_raw_bert_indices']
-        aspect_indices = inputs['aspect_bert_indices']
-        distances = inputs['dep_distance_to_aspect']
+        bert_embedding = inputs[0]
+        text_local_indices = inputs[1]
+        aspect_indices = inputs[2]
+        distances = inputs[3]
         bert_local_out = bert_embedding
 
         if self.opt.local_context_focus == 'cdm':
-            masked_local_text_vec = self.feature_dynamic_mask(
-                text_local_indices, 
-                aspect_indices, 
-                distances)
+            masked_local_text_vec = self.feature_dynamic_mask(text_local_indices, aspect_indices, distances)
             bert_local_out = torch.mul(bert_local_out, masked_local_text_vec)
 
         elif self.opt.local_context_focus == 'cdw':
-            weighted_text_local_features = self.feature_dynamic_weighted(
-                text_local_indices, 
-                aspect_indices, 
-                distances)
+            weighted_text_local_features = self.feature_dynamic_weighted(text_local_indices, aspect_indices, distances)
             bert_local_out = torch.mul(bert_local_out, weighted_text_local_features)
 
         out_cat = torch.cat((bert_local_out, bert_embedding), dim=-1)
@@ -177,5 +167,36 @@ class LCFS_BERT(nn.Module):
         dense_out = self.dense(pooled_out)
         return dense_out
 
-        # TODO: opt.local_context_focus
-        # TODO: locate feature and logits
+        # text_bert_indices = inputs[0]
+        # bert_segments_ids = inputs[1]
+        # text_local_indices = inputs[2] # Raw text without adding aspect term
+        # aspect_indices = inputs[3] # Raw text of aspect
+        # distances = inputs[4]
+        #
+        # spc_out = self.bert_spc(text_bert_indices, bert_segments_ids)
+        # bert_spc_out = spc_out[0]
+        # print(bert_spc_out.shape)
+        # spc_att = spc_out[-1][-1]
+        #
+        # bert_local_out = self.bert_local(text_local_indices)[0]
+        #
+        # if self.opt.local_context_focus == 'cdm':
+        #     masked_local_text_vec = self.feature_dynamic_mask(text_local_indices, aspect_indices,distances)
+        #     bert_local_out = torch.mul(bert_local_out, masked_local_text_vec)
+        #
+        # elif self.opt.local_context_focus == 'cdw':
+        #     weighted_text_local_features = self.feature_dynamic_weighted(text_local_indices, aspect_indices,distances)
+        #     bert_local_out = torch.mul(bert_local_out, weighted_text_local_features)
+        #
+        # print(bert_local_out.shape)
+        # #bert_local_out = self.bert_local_sa(bert_local_out)
+        # out_cat = torch.cat((bert_local_out, bert_spc_out), dim=-1)
+        # print(out_cat.shape)
+        # mean_pool = self.mean_pooling_double(out_cat)
+        # self_attention_out, local_att = self.bert_sa(mean_pool)
+        # pooled_out = self.bert_pooler(self_attention_out)
+        # dense_out = self.dense(pooled_out)
+        # print(dense_out)
+        # if output_attentions:
+        #     return (dense_out,spc_att,local_att)
+        # return dense_out
