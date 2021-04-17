@@ -26,6 +26,7 @@ import numpy as np
 import torch
 from transformers import BertTokenizer, BertModel
 import en_core_web_trf
+import networkx as nx
 
 from constants import *
 from utils import InstanceFeatures #, Embeddings
@@ -53,6 +54,7 @@ def convert_Target_to_Instance(tgt:Target, bert_tokenizer, pretokenizer,
     text = tgt.get("text")
 
     doc = pretokenizer(text)
+    pretokens = [tok.text for tok in doc]
     token_ids, token_to_orig_map = pretoken2token(doc, bert_tokenizer)
     mask = [1] * len(token_ids)
 
@@ -61,7 +63,8 @@ def convert_Target_to_Instance(tgt:Target, bert_tokenizer, pretokenizer,
     entityA_pos = get_entity_pos(doc, pretokenizer(target))
 
     return InstanceFeatures(
-        task=task, sample_id=sample_id, tokens=tokens, entityA=target, entityB=None,
+        task=task, sample_id=sample_id, pretokens=pretokens, tokens=tokens, 
+        entityA=target, entityB=None,
         entityA_pos=entityA_pos, entityB_pos=None,
         token_ids=token_ids, token_mask=mask, label=str(sentiment), 
         label_id=sentiment+1, token_to_orig_map=token_to_orig_map,
@@ -86,6 +89,7 @@ def preprocess_cpc(file_path, bert_tokenizer, pretokenizer):
 
             # spacy pretokenization
             doc = pretokenizer(sentence)
+            pretokens = [tok.text for tok in doc]
     
             # get bert tokens and token to original word map
             token_ids, token_to_orig_map = pretoken2token(doc, bert_tokenizer)
@@ -104,7 +108,7 @@ def preprocess_cpc(file_path, bert_tokenizer, pretokenizer):
                     task="cpc", sample_id=idx, 
                     entityA=entityA, entityA_pos=entityA_pos, 
                     entityB=entityB, entityB_pos=entityB_pos,
-                    tokens=tokens, token_ids=token_ids,
+                    pretokens=pretokens, tokens=tokens, token_ids=token_ids,
                     token_mask=mask, label=label, label_id=LABEL2ID[label],
                     token_to_orig_map=token_to_orig_map, 
                     sentence=sentence_from_tokens, sentence_raw=sentence,
@@ -233,6 +237,37 @@ def preprocess_depgraph(instance_features, lang_parser):
     
     return all_depgraph
 
+def preprocess_aspect_dist(instance_features, depgraphs, entity):
+    assert len(instance_features) == len(depgraphs)
+    n_instances = len(instance_features)
+    
+    dists = [] 
+    for i in tqdm(range(n_instances)):
+        ins = instance_features[i]
+        depg = depgraphs[i]
+        assert i == ins.get_sample_id(), "[ASPECT] idx does NOT match sample ID"
+
+        edges = depg['edge_index']
+        edges = torch.t(edges).tolist()
+        aspect_pos = getattr(ins, f"entity{entity}_pos")
+        n_pretokens = len(ins.pretokens)
+
+        graph = nx.Graph(edges)
+
+        dist = []
+        for i in range(n_pretokens):
+            sum_ = 0
+            for pos in aspect_pos:
+                try:
+                    sum_ += nx.shortest_path_length(graph, source=i, target=pos)
+                except:
+                    sum_ += n_pretokens # No connection between source and target
+            dist.append(sum_ / len(aspect_pos))
+
+        dists.append(dist)
+    
+    return dists
+
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
@@ -253,6 +288,7 @@ if __name__ == "__main__":
         default=100, help="The dimensions of GloVe. Default=100.")
 
     parser.add_argument("--generate_dep_graph", action="store_true", default=False)
+    parser.add_argument("--generate_aspect_dist", action="store_true", default=False)
 
     args = parser.parse_args()
 
@@ -355,3 +391,21 @@ if __name__ == "__main__":
         print("\t\t ABSA data ...")
         absa_depg = preprocess_depgraph(absa_data, nlp)
         dump_pickle(DATA_DIR+"absa_depgraph.pkl", absa_depg)
+
+    if args.generate_aspect_dist:
+        
+        print("[preprocess] generating aspect term distance ...")
+        print("\t\t CPC data ...")
+
+        cpc_trn_aspect_distA = preprocess_aspect_dist(cpc_trn_data, cpc_trn_depg, 'A')
+        cpc_tst_aspect_distA = preprocess_aspect_dist(cpc_tst_data, cpc_tst_depg, 'A')
+        cpc_trn_aspect_distB = preprocess_aspect_dist(cpc_trn_data, cpc_trn_depg, 'B')
+        cpc_tst_aspect_distB = preprocess_aspect_dist(cpc_tst_data, cpc_tst_depg, 'B')
+        dump_pickle(DATA_DIR+"cpc_train_aspect_distA.pkl", cpc_trn_aspect_distA)
+        dump_pickle(DATA_DIR+"cpc_test_aspect_distA.pkl", cpc_tst_aspect_distA)
+        dump_pickle(DATA_DIR+"cpc_train_aspect_distB.pkl", cpc_trn_aspect_distB)
+        dump_pickle(DATA_DIR+"cpc_test_aspect_distB.pkl", cpc_tst_aspect_distB)
+
+        print("\t\t ABSA data ...")
+        absa_aspect_dist = preprocess_aspect_dist(absa_data, absa_depg, 'A')
+        dump_pickle(DATA_DIR+"absa_aspect_dist.pkl", absa_aspect_dist)

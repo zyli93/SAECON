@@ -97,6 +97,7 @@ class InstanceFeatures:
                  entityA_pos: list,
                  entityB: str,
                  entityB_pos: list,
+                 pretokens: list,
                  tokens: list,
                  token_ids: list,
                  token_mask: list, 
@@ -127,6 +128,7 @@ class InstanceFeatures:
         """
         self.task           = task
         self.sample_id      = sample_id
+        self.pretokens      = pretokens
         self.tokens         = tokens
         self.entityA        = entityA
         self.entityA_pos    = entityA_pos
@@ -354,32 +356,3 @@ def convert_batch_to_absa_batch(original_batch, my_tokenizer, absa_fix_len):
         ""
     }
     return batch
-    
-def calculate_aspect_dist(depgraph, aspect_pos, n_pretokens):
-    """
-    compute the smallest distance on dep-graph from any token (tokenized by spaCy)
-    in the sentence to the aspect
-
-    Args:
-        depgraph: dependency graph (see returns of preprocess_depgraph() in preprocess.py)
-        aspect_pos: aspect term position
-        n_pretokens: number of pretokens
-    
-    Returns:
-        dist: list of distance to aspect term
-    """
-    edges = depgraph['edge_index']
-    edges = torch.t(edges).tolist()
-
-    graph = nx.Graph(edges)
-
-    dist = []
-    for i in range(n_pretokens):
-        sum_ = 0
-        for pos in aspect_pos:
-            try:
-                sum_ += nx.shortest_path_length(graph, source=i, target=pos)
-            except:
-                sum_ += n_pretokens # No connection between source and target
-        dist.append(sum_ / len(aspect_pos))
-    return dist
