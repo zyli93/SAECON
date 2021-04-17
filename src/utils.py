@@ -355,36 +355,31 @@ def convert_batch_to_absa_batch(original_batch, my_tokenizer, absa_fix_len):
     }
     return batch
     
-def calculate_dep_dist(sentence,aspect):
-    terms = [a.lower() for a in aspect.split()]
-    doc = nlp(sentence)
-    # Load spacy's dependency tree into a networkx graph
-    edges = []
-    cnt = 0
-    term_ids = [0] * len(terms)
-    for token in doc:
-        # Record the position of aspect terms
-        if cnt < len(terms) and token.lower_ == terms[cnt]:
-            term_ids[cnt] = token.i
-            cnt += 1
+def calculate_aspect_dist(depgraph, aspect_pos, n_pretokens):
+    """
+    compute the smallest distance on dep-graph from any token (tokenized by spaCy)
+    in the sentence to the aspect
 
-        for child in token.children:
-            edges.append(('{}_{}'.format(token.lower_,token.i),
-                          '{}_{}'.format(child.lower_,child.i)))
+    Args:
+        depgraph: dependency graph (see returns of preprocess_depgraph() in preprocess.py)
+        aspect_pos: aspect term position
+        n_pretokens: number of pretokens
+    
+    Returns:
+        dist: list of distance to aspect term
+    """
+    edges = depgraph['edge_index']
+    edges = torch.t(edges).tolist()
 
     graph = nx.Graph(edges)
 
-    dist = [0.0]*len(doc)
-    text = [0]*len(doc)
-    for i,word in enumerate(doc):
-        source = '{}_{}'.format(word.lower_,word.i)
-        sum = 0
-        for term_id,term in zip(term_ids,terms):
-            target = '{}_{}'.format(term, term_id)
+    dist = []
+    for i in range(n_pretokens):
+        sum_ = 0
+        for pos in aspect_pos:
             try:
-                sum += nx.shortest_path_length(graph,source=source,target=target)
+                sum_ += nx.shortest_path_length(graph, source=i, target=pos)
             except:
-                sum += len(doc) # No connection between source and target
-        dist[i] = sum/len(terms)
-        text[i] = word.text
-    return text,dist
+                sum_ += n_pretokens # No connection between source and target
+        dist.append(sum_ / len(aspect_pos))
+    return dist
