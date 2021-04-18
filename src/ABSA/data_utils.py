@@ -82,6 +82,7 @@ def text_to_berttok_seq(tokenizer, text, padlen):
     return pad_or_truncate(sequence, padlen)
 
 
+
 def retok_with_dist(tokenizer, text, dep_dist, padlen):
     """
     convert spacy tokenization to bert tokenization

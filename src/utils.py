@@ -97,6 +97,7 @@ class InstanceFeatures:
                  entityA_pos: list,
                  entityB: str,
                  entityB_pos: list,
+                 pretokens: list,
                  tokens: list,
                  token_ids: list,
                  token_mask: list, 
@@ -127,6 +128,7 @@ class InstanceFeatures:
         """
         self.task           = task
         self.sample_id      = sample_id
+        self.pretokens      = pretokens
         self.tokens         = tokens
         self.entityA        = entityA
         self.entityA_pos    = entityA_pos
@@ -349,6 +351,7 @@ def convert_batch_to_absa_batch(args, original_batch, my_tokenizer, absa_fix_len
         "aspect_bert_indices": bert_tkn_asp_idx_list,
         "dep_distance_to_aspect": token_dist_list
     }
+
     return absa_batch
     
 def calculate_dep_dist(sentence,aspect):
