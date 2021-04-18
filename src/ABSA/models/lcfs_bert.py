@@ -38,42 +38,38 @@ class SelfAttention(nn.Module):
         self.tanh = torch.nn.Tanh()
 
     def forward(self, inputs):
-        zero_tensor = torch.tensor(np.zeros((inputs.size(0), 1, 1, self.opt.max_seq_len),
-                                            dtype=np.float32), dtype=torch.float32).to(self.opt.device)
-        SA_out,att = self.SA(inputs, zero_tensor)
+        zero_tensor = torch.tensor(
+            np.zeros((inputs.size(0), 1, 1, self.opt.max_seq_len), 
+                dtype=np.float32), dtype=torch.float32).to(self.opt.device)
+        SA_out, att = self.SA(inputs, zero_tensor)
 
         SA_out = self.tanh(SA_out)
-        return SA_out,att
+        return SA_out, att
 
+"""
+    attributes in opt to be moved to args:
+        1. dropout
+        2. local_context_focus
+"""
 class LCFS_BERT(nn.Module):
-    def __init__(self, model, opt):
+    def __init__(self, args, use_gpu):
         super(LCFS_BERT, self).__init__()
-        if 'bert' in opt.pretrained_bert_name:
-            hidden = model.config.hidden_size
-        elif 'xlnet' in opt.pretrained_bert_name:
-            hidden = model.config.d_model
+        
+        self.hidden, hidden = args.emb_dim, args.emb_dim
+        sa_config = BertConfig(hidden_size=self.hidden, output_attentions=True)
+        self.use_gpu = use_gpu
+        self.local_context_focus = args.absa_local_context_focus
 
-        self.hidden = hidden
-        sa_config = BertConfig(hidden_size=self.hidden,output_attentions=True)
-
-        # self.bert_spc = model
-        # self.bert_g_sa = SelfAttention(sa_config,opt)
-        # self.bert_g_pct = PointwiseFeedForward(self.hidden)
-
-        self.opt = opt
-        # self.bert_local = copy.deepcopy(model)
-        # self.bert_local_sa = SelfAttention(sa_config,opt)
-        # self.bert_local_pct = PointwiseFeedForward(self.hidden)
-
-        self.dropout = nn.Dropout(opt.dropout)
-        self.bert_sa = SelfAttention(sa_config,opt)
+        self.dropout = nn.Dropout(args.absa_dropout)
+        self.bert_sa = SelfAttention(sa_config, args.absa_max_seq_len)  
+        # TODO: why bert SelfAttention???
 
         # self.mean_pooling_double = nn.Linear(hidden * 2, hidden)
         self.mean_pooling_double = PointwiseFeedForward(hidden * 2, hidden,hidden)
         self.bert_pooler = BertPooler(sa_config)
-        self.dense = nn.Linear(hidden, opt.polarities_dim)
+        self.dense = nn.Linear(hidden, 3)  # Hard-coded polarities-dim = 3
 
-    def feature_dynamic_mask(self, text_local_indices, aspect_indices,distances_input=None):
+    def feature_dynamic_mask(self, text_local_indices, aspect_indices, distances_input=None):
         # TODO: why there are cpu?
         texts = text_local_indices.cpu().numpy() # batch_size x seq_len
         asps = aspect_indices.cpu().numpy() # batch_size x aspect_len
@@ -105,7 +101,9 @@ class LCFS_BERT(nn.Module):
                         masked_text_raw_indices[text_i][i] = np.zeros((self.hidden), dtype=np.float)
 
         masked_text_raw_indices = torch.from_numpy(masked_text_raw_indices)
-        return masked_text_raw_indices.to(self.opt.device)
+        if self.use_gpu:
+            masked_text_raw_indices = masked_text_raw_indices.cuda()
+        return masked_text_raw_indices
         # TODO: fix devices issues
 
     def feature_dynamic_weighted(self, text_local_indices, aspect_indices,distances_input=None):
@@ -113,8 +111,9 @@ class LCFS_BERT(nn.Module):
         asps = aspect_indices.cpu().numpy()
         if distances_input is not None:
             distances_input = distances_input.cpu().numpy()
-        masked_text_raw_indices = np.ones((text_local_indices.size(0), self.opt.max_seq_len, self.opt.bert_dim),
-                                          dtype=np.float32) # batch x seq x dim
+        masked_text_raw_indices = np.ones(
+            (text_local_indices.size(0), self.opt.max_seq_len, self.opt.bert_dim),
+            dtype=np.float32) # batch x seq x dim
         mask_len = self.opt.SRD
         for text_i, asp_i in zip(range(len(texts)), range(len(asps))):
             if distances_input is None:
@@ -145,7 +144,9 @@ class LCFS_BERT(nn.Module):
                     masked_text_raw_indices[text_i][i] = masked_text_raw_indices[text_i][i] * distances_i[i]
 
         masked_text_raw_indices = torch.from_numpy(masked_text_raw_indices)
-        return masked_text_raw_indices.to(self.opt.device)
+        if self.use_gpu:
+            masked_text_raw_indices = masked_text_raw_indices.cuda()
+        return masked_text_raw_indices
         # TODO: fix devices issues
 
 
@@ -156,14 +157,14 @@ class LCFS_BERT(nn.Module):
         distances = inputs['dep_distance_to_aspect']
         bert_local_out = bert_embedding
 
-        if self.opt.local_context_focus == 'cdm':
+        if self.local_context_focus == 'cdm':
             masked_local_text_vec = self.feature_dynamic_mask(
                 text_local_indices, 
                 aspect_indices, 
                 distances)
             bert_local_out = torch.mul(bert_local_out, masked_local_text_vec)
 
-        elif self.opt.local_context_focus == 'cdw':
+        elif self.local_context_focus == 'cdw':
             weighted_text_local_features = self.feature_dynamic_weighted(
                 text_local_indices, 
                 aspect_indices, 

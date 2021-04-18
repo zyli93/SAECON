@@ -278,6 +278,8 @@ if __name__ == "__main__":
     parser.add_argument("--input_emb", type=str, default="bert_fixed", 
         help="Select from `fix`, `ft`, and `glove`")
     parser.add_argument("--bert_version", type=str, default="bert-base-uncased")
+    parser.add_argument("--emb_dim", type=int, 
+        help="Embedding dimension of Bert or Glove embedding")
     parser.add_argument("--glove_dim", type=int, default=100)
 
     # training config
@@ -291,6 +293,13 @@ if __name__ == "__main__":
         help="Ratio of batch numbers for CPC and ABSA. Default: 1:1.")
     parser.add_argument("--data_augmentation", action="store_true", default=False,
         help="Whether to conduct data augmentation for training set. Default=False.")
+    
+    # absa model config
+    parser.add_argument("--absa_max_seq_len", type=str, default=80)
+    parser.add_argument("--absa_dropout", type=float, default=0.2)
+    parser.add_argument("--absa_local_context_focus", type=str, default="cdm",
+        help="Local context focus option: can be `cdm` or `cdw`")
+
 
     # logging 
     parser.add_argument("--log_batch_num", type=int, default=100)
