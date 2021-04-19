@@ -254,17 +254,24 @@ def preprocess_aspect_dist(instance_features, depgraphs, entity):
 
         graph = nx.Graph(edges)
 
-        dist = []
-        for i in range(n_pretokens):
+        # distance from each pretoken
+        dist_wd = []
+        for tok_pos in range(n_pretokens):
             sum_ = 0
             for pos in aspect_pos:
                 try:
-                    sum_ += nx.shortest_path_length(graph, source=i, target=pos)
+                    sum_ += nx.shortest_path_length(graph, source=tok_pos, target=pos)
                 except:
                     sum_ += n_pretokens # No connection between source and target
-            dist.append(sum_ / len(aspect_pos))
+            dist_wd.append(sum_ / len(aspect_pos))
+        
+        # distance from each wordpiece
+        dist_wp = [n_pretokens] * len(ins.tokens)
+        for i_wp, i_wd in ins.token2orig.items():
+            dist_wp[i_wp] = dist_wd[i_wd]
+        dist_wp[0] = dist_wp[-1] = 0
 
-        dists.append(dist)
+        dists.append(dist_wp)
     
     return dists
 
@@ -393,6 +400,11 @@ if __name__ == "__main__":
         dump_pickle(DATA_DIR+"absa_depgraph.pkl", absa_depg)
 
     if args.generate_aspect_dist:
+
+        if not args.generate_dep_graph:
+            cpc_trn_depg = load_pickle(DATA_DIR+"cpc_train_depgraph.pkl") 
+            cpc_tst_depg = load_pickle(DATA_DIR+"cpc_test_depgraph.pkl") 
+            absa_depg = load_pickle(DATA_DIR+"absa_depgraph.pkl")
         
         print("[preprocess] generating aspect term distance ...")
         print("\t\t CPC data ...")
