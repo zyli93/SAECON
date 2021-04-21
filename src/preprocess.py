@@ -71,7 +71,6 @@ def convert_Target_to_Instance(tgt:Target, bert_tokenizer, pretokenizer,
         sentence=sentence_from_tokens, sentence_raw=text, we_indices=None)
 
 
-
 # Return a list of InstanceFeatures. One InstanceFeature for each sentence.
 def preprocess_cpc(file_path, bert_tokenizer, pretokenizer):
 
@@ -105,7 +104,7 @@ def preprocess_cpc(file_path, bert_tokenizer, pretokenizer):
 
             cpc_data_features.append(
                 InstanceFeatures(
-                    task="cpc", sample_id=idx, 
+                    task=CPC, sample_id=idx, 
                     entityA=entityA, entityA_pos=entityA_pos, 
                     entityB=entityB, entityB_pos=entityB_pos,
                     pretokens=pretokens, tokens=tokens, token_ids=token_ids,
@@ -137,7 +136,8 @@ def preprocess_bert_embedding(instance_features, bert, use_gpu):
 
             # squeeze the tensor to remove the batch
             wp_emb = torch.squeeze(wp_emb, dim=0)  # (token_len, dim)
-            wd_emb = wordpiece2word(wp_emb, ins.get_token_to_orig_map(), use_gpu)
+            wd_emb = wordpiece2word(
+                wp_emb, ins.get_token_to_orig_map(), use_gpu) # (pretoken, dim)
 
             all_wordlevel_emb[idx] = wd_emb
         
@@ -170,6 +170,7 @@ def preprocess_glove_embedding(instance_features, model, tokenizer):
     
     return all_wordlevel_emb_glove
     
+
 def preprocess_absa(bert_tokenizer, pretokenizer):
     """
     Process Aspect-Based Sentiment Analysis datasets of SemEval-14/15/16 Tasks.
@@ -197,7 +198,7 @@ def preprocess_absa(bert_tokenizer, pretokenizer):
     all_data_instances = []
     for idx, target in tqdm(enumerate(all_data_targets)):
         all_data_instances.append(convert_Target_to_Instance(
-            target, bert_tokenizer, pretokenizer, task="absa", sample_id=idx))
+            target, bert_tokenizer, pretokenizer, task=ABSA, sample_id=idx))
     
     return all_data_instances
     
@@ -227,15 +228,16 @@ def preprocess_depgraph(instance_features, lang_parser):
                 edge_index.append([token.i, child.i])
                 edge_label.append(DEPENDENCY_LABELS[child.dep_])
 
-        edge_index = torch.tensor(edge_index, dtype=torch.long)
+        edge_index = torch.tensor(edge_index, dtype=torch.int)
         edge_index = torch.t(edge_index).contiguous()
-        edge_label = torch.tensor(edge_label, dtype=torch.long)
+        edge_label = torch.tensor(edge_label, dtype=torch.int)
         all_depgraph[idx] = {
             'edge_index': edge_index,
             'edge_label': edge_label
         }
     
     return all_depgraph
+
 
 def preprocess_aspect_dist(instance_features, depgraphs, entity):
     assert len(instance_features) == len(depgraphs)
@@ -267,6 +269,7 @@ def preprocess_aspect_dist(instance_features, depgraphs, entity):
         dists.append(dist)
     
     return dists
+
 
 if __name__ == "__main__":
 
@@ -309,9 +312,8 @@ if __name__ == "__main__":
     pre_tkn = nlp.tokenizer
     bert_tkn = BertTokenizer.from_pretrained(args.bert_version)
 
-    # whether to re-process CPC data from raw input files
+    # process or load CPC data
     if args.process_cpc_instances:
-        # preprocess cpc
         print("[preprocess] processing cpc data ...")
         cpc_trn_data = preprocess_cpc(DATA_DIR + "data.csv", bert_tkn, pre_tkn)
         cpc_tst_data = preprocess_cpc(DATA_DIR + "held-out-data.csv", bert_tkn, pre_tkn)
@@ -325,8 +327,8 @@ if __name__ == "__main__":
         cpc_trn_data = load_pickle(DATA_DIR+"processed_cpc_train.pkl")
         cpc_tst_data = load_pickle(DATA_DIR+"processed_cpc_test.pkl")
 
+    # preprocess or load absa
     if args.process_absa_instances:
-        # preprocess absa
         print("[preprocess] processing absa data ...")
         absa_data = preprocess_absa(bert_tkn, pre_tkn)
         dump_pickle(DATA_DIR+"processed_absa.pkl", absa_data)
@@ -334,7 +336,6 @@ if __name__ == "__main__":
         print("[preprocess] loading absa data ...")
         absa_data = load_pickle(DATA_DIR+"processed_absa.pkl")
 
-    
     # print cpc/absa statistics
     print("[preprocess] statistics:")
     print("\t# CPC Train:{}, CPC Test:{}, ABSA:{}".format(

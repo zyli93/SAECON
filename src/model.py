@@ -26,8 +26,7 @@ from utils import get_activ
 class SaeccModel(nn.Module):
     def __init__(self, args, device):
         super().__init__()
-        # Whether to use domain invariant 
-        self.use_dom_inv = args.dom_adapt
+        self.use_dom_inv = args.dom_adapt  # whether to use domain invariant
         self.device = device
         self.cpc_pipeline = CpcPipeline(args)
         self.absa_pipeline = LCFS_BERT(args, device)

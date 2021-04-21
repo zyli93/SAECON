@@ -2,6 +2,11 @@
 Sentiment Analysis Enhanced Comparative Classification
 Use Saecc as the temporal name, will change it later.
 
+## TODO list
+
+- [ ] entityA_pos is the position of pretokens, does it matter?
+- [ ] `dist` created by tokens or pretokens? ==> by tokens
+
 ## Prerequisite
 
 To run preprocess for Saecc, we need to get ready for a few things: datasets,  Python packages, nltk corpora dependencies, pre-trained bert model, and glove pre-trained word vectors. 
@@ -38,5 +43,3 @@ Use `-h` to see all options. For the first time, run this:
 python src/preprocess.py --process_cpc_instances --process_absa_instances --generate_bert_emb --generate_glove_emb
 ```
 Output files are saved in `./data/`.
-
-

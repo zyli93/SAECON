@@ -10,9 +10,7 @@ import numpy as np
 
 from transformers.modeling_bert import BertPooler, BertSelfAttention, BertConfig
 
-from ABSA.data_utils import pad_or_truncate_tensorlist, text_to_berttok_seq
-from ABSA.data_utils import retok_with_dist
-from ABSA.data_utils import pad_or_truncate
+from ABSA.data_utils import pad_to_fixedlength
 from transformers import BertTokenizer
 
 class PointwiseFeedForward(nn.Module):
@@ -68,7 +66,7 @@ class LCFS_BERT(nn.Module):
         self.device= device
         self.local_context_focus = args.absa_local_context_focus
         self.max_seq_len = args.absa_max_seq_len
-        self.bert_dim = args.emb_dim
+        self.emb_dim = args.emb_dim
         self.SRD = args.absa_syntactic_relative_distance
 
         self.tokenizer = BertTokenizer.from_pretrained(args.bert_version)
@@ -105,7 +103,7 @@ class LCFS_BERT(nn.Module):
     def feature_dynamic_weighted(self, text_local_indices, distances_input=None):
         texts = text_local_indices
         masked_text_raw_indices = np.ones(
-            (len(text_local_indices), self.max_seq_len, self.bert_dim),
+            (len(text_local_indices), self.max_seq_len, self.emb_dim),
             dtype=np.float32) # batch x seq x dim
         mask_len = self.SRD
         for text_i in range(len(text_local_indices)):
@@ -162,17 +160,20 @@ class LCFS_BERT(nn.Module):
             switch - Specifically for ABSA batchs, switch entityA and entityB
 
         """
-        ent = "aspdistB" if switch else "aspdistA"
+        aspect_dist = "aspdistB" if switch else "aspdistA"
 
         emb = original_batch['embedding']
-        ins_feat = original_batch['instance_feature']
+        ins_feat = original_batch['instances']
         assert len(emb) == len(ins_feat), "Num of emb doesn't match num of ins_feat"
 
-        padded_emb = pad_or_truncate_tensorlist(emb, self.max_seq_len)  # (batch_size, absa_fix_len)
+        padded_emb = pad_to_fixedlength(emb, self.max_seq_len)  # (batch_size, absa_fix_len)
 
+        # text_raw_bert_indices, token_dist_list: both are list of lists
         text_raw_bert_indices = [ins.get_token_ids() 
             for ins in original_batch['instances']]
-        token_dist_list = original_batch[ent] 
+        token_dist_list = original_batch[aspect_dist] 
+
+        # check text_raw_bert_indices have the same length as token_dist_list
         
         absa_batch = {
             "bert_embedding": padded_emb,  # Padded, tensor
