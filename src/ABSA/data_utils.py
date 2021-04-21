@@ -106,7 +106,6 @@ def calculate_dep_dist(sentence,aspect):
     compute the smallest distance on dep-graph from any token (tokenized by spaCy)
     in the sentence to the aspect
     """
-    # TODO: absa + dependency parsing
     terms = [a.lower() for a in aspect.split()]
     doc = nlp(sentence)
     # Load spacy's dependency tree into a networkx graph

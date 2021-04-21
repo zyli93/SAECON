@@ -7,48 +7,81 @@
     Date created: March 11, 2020
     Python version: 3.6.0
 
-    # TODO: add index attribute to InstanceFeature
 """
 import math
+from collections import OrderedDict
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.utils.rnn import pad_sequence
-
-from torch.utils.data import DataLoader as TorchDataLoader
+from transformers import BertModel
+from pytorch_revgrad import RevGrad
 
 from module import SGCNConv
-
 from ABSA.models import LCFS_BERT
-from ABSA.data_utils import pad_or_truncate_tensorlist, text_to_berttok_seq
-from ABSA.data_utils import retok_with_dist
-
-from utils import dynamic_padding, pad_or_trunc_to_fixlength
 from constants import *
-from transformers import BertTokenizer, BertModel
-from transformers.modeling_bert import BertPooler, BertSelfAttention, BertConfig
+from utils import get_activ
 
 class SaeccModel(nn.Module):
-    def __init__(self, args):
-        self().__init__()
+    def __init__(self, args, device):
+        super().__init__()
+        # Whether to use domain invariant 
+        self.use_dom_inv = args.dom_adapt
+        self.device = device
         self.cpc_pipeline = CpcPipeline(args)
-        self.absa_pipeline = AbsaPipeline(args)
+        self.absa_pipeline = LCFS_BERT(args, device)
 
-        hidden_dim = self.cpc_pipeline.output_dim + self.absa_pipeline.output_dim
-        self.linear = nn.Linear(hidden_dim, 3)
+        pipeline_output_dim = self.cpc_pipeline.output_dim + self.absa_pipeline.output_dim
+        readout_hidden_dim = pipeline_output_dim // 2
+
+        # CPC readout layer
+        self.cpc_readout = nn.Sequential(OrderedDict([
+          ('linear1', nn.Linear(pipeline_output_dim, readout_hidden_dim)),
+          ('activ1', get_activ(args.activation)),
+          ('dropout', nn.Dropout(args.dropout)),
+          ('linear2', nn.Linear(readout_hidden_dim, 3))
+        ]))
+
+        dom_inv_dim = self.cpc_pipeline.output_dim
+        if args.dom_adapt:
+            self.dom_inv = nn.Sequential(OrderedDict([
+                ('linear', nn.Linear(dom_inv_dim, 2)),
+                ('activ', get_activ('relu')),
+                ('revgrad', RevGrad())  # TODO: rev grad position right?
+            ]))
 
         self._reset_params()
 
     def forward(self, batch):
-        # TODO: Differentiate cpc and absa!
-        hidden_cpc = self.cpc_pipeline(batch)
-        hidden_absa = self.absa_pipeline(batch)
+        # TODO: check on the dimensions
 
-        hidden_agg = torch.cat(hidden_cpc.values())
-        hidden_agg = torch.cat([hidden_agg, hidden_absa['logits']])
+        # CPC. cpc_pipeline outputs a dict of `nodeA`, `nodeB`, `wordA`, and `wordB`
+        if batch.task == CPC:
+            hidden_cpc = self.cpc_pipeline(batch)
+            hidden_absa_entA, _ = self.absa_pipeline(batch)
+            hidden_absa_entB, _ = self.absa_pipeline(batch, switch=True)
+
+            hidden_entA = torch.cat(
+                [hidden_cpc['nodeA'], hidden_cpc['wordA'], hidden_absa_entA], 1)
+            hidden_entB = torch.cat(
+                [hidden_cpc['nodeB'], hidden_cpc['wordB'], hidden_absa_entB], 1)
+            
+            # CPC readout
+            pred = self.cpc_readout(
+                torch.cat([hidden_entA, hidden_entB], dim=1))
+            hidden_absa = torch.cat([hidden_absa_entA, hidden_absa_entB])
+
+        # ABSA. absa_pipeline outputs: pooled_out, prediction
+        else:
+            hidden_absa, pred = self.absa_pipeline(batch)
         
-        logits = nn.linear(hidden_agg)
-        return logits
+        if self.use_dom_inv:
+            dom_pred = self.dom_inv(hidden_absa)
+            return {'prediction': pred, "domain_prediction": dom_pred}
+
+        return {'prediction': pred}
+
 
     def _reset_params(self):
         initializer = torch.nn.init.xavier_normal
@@ -62,92 +95,6 @@ class SaeccModel(nn.Module):
                     else:
                         stdv = 1. / math.sqrt(p.shape[0])
                         torch.nn.init.uniform_(p, a=-stdv, b=stdv)
-
-
-class AbsaPipeline(nn.Module):
-    def __init__(self, args):
-        super().__init__()
-
-        """
-        # TODO: argument to args
-        self.batch_size = int(batch_size)
-        self.absa = SAECC_ABSA(self.batch_size)
-
-        # TODO: save output_dim for saecc
-        self.output_dim = None
-        """
-
-        # === New code ===
-        self.max_seq_len = args.absa_max_seq_len
-        self.tokenizer = BertTokenizer.from_pretrained(args.bert_version)
-        self.model = LCFS_BERT(args)
-
-        # TODO: figure out what's done here.
-        _params = filter(lambda p: p.requires_grad, self.model.parameters())
-
-
-    def forward(self, batch):
-        """
-        batch_embedding: 
-          a list of tensors, each of shape [sentence length, 768]
-        batch_instance_feature: 
-          a list of instance features that are in the same order as in batch_embedding
-        """
-        # TODO: move to the right place in the right format
-        absa_batch = self.convert_batch_to_absa_batch(batch)
-
-        # TODO: feature and logits
-        features, logits = self.model(absa_batch)
-
-        return features, logits # TODO: dimension of outputs
-    
-    def convert_batch_to_absa_batch(self, original_batch):
-        emb = original_batch['embedding']
-        ins_feat = original_batch['instance_feature']
-        entities = [ins.get_entities()[0] for ins in ins_feat]
-
-        assert len(emb) == len(ins_feat), "Num of emb doesn't match num of ins_feat"
-
-        padded_emb = pad_or_truncate_tensorlist(emb, self.max_seq_len)  # (batch_size, absa_fix_len)
-        
-        # TODO: sentence or sentence_raw???
-        # bert_tkn_text_idx_list: a list of **Fixed-Length** sentences
-        bert_tkn_text_idx_list = [
-            text_to_berttok_seq(self.tokenizer, ins.sentence, self.max_seq_len) for ins in ins_feat]
-        bert_tkn_asp_idx_list = [
-            text_to_berttok_seq(self.tokenizer, ent, self.max_seq_len) for ent in entities]
-        # TODO: need that in tensor or list[list]
-
-        # list of tuples: raw_tokens, dist
-        # raw_tokens: tokens generated by spaCy
-        # dist: distance to aspect term (if multiple aspect term, compute mean dist)
-        pretoken_depdist_list = [
-            calculate_dep_dist(ins.sentence, ins.get_entities()[0])
-            for ins in ins_feat]
-        
-        # Add CLS/SEP to spacy.doc.token lists, add 0 to beginning & end of dis
-        CLS, SEP = self.tokenizer.cls_token, self.tokenizer.sep_token
-        pretoken_depdist_list = [([CLS]+tokens+[SEP], [0]+distances+[0]) 
-            for tokens, distances in pretoken_depdist_list]
-
-        token_dist_list = [retok_with_dist(self.tokenizer, x[0], x[1], self.max_seq_len) 
-            for x in pretoken_depdist_list]
-        
-        # TODO: token_dist_list will later come from original_batch
-        """
-        # New way to get that will become:
-        token_dist_list = original_batch["token_distance_list"]
-        # TODO: pay attention that CPC will have two distance list
-        """
-
-        absa_batch = {
-            "bert_embedding": padded_emb,
-            "text_raw_bert_indices": bert_tkn_text_idx_list,
-            "aspect_bert_indices": bert_tkn_asp_idx_list,
-            "dep_distance_to_aspect": token_dist_list
-        }
-        return absa_batch
-
 
 
 class CpcPipeline(nn.Module):
@@ -167,10 +114,12 @@ class CpcPipeline(nn.Module):
         ]
 
         # local context
+        # (batch, seq_len, 2*hidden)
         self.lstm = nn.LSTM(
             input_size=args.embed_dim,
             hidden_size=args.hidden_dim,
-            batch_first=True
+            batch_first=True,
+            bidirectional=True,
         )
 
         self.output_dim = (args.hidden_dim + args.sgcn_dims) * 2
@@ -191,7 +140,9 @@ class CpcPipeline(nn.Module):
 
         # local context
         word_embedding = batch['embedding']
-        word_hidden = self.lstm(word_embedding)[0]
+        word_hidden = self.lstm(word_embedding)[0] 
+        bs, sl = word_hidden.size(0), word_hidden.size(1)
+        word_hidden = torch.mean(word_hidden.view(bs, sl, 2, -1), dim=2)
 
         assert node_hidden.shape[0] == word_hidden.shape[0], 'batch size do not match'
         assert node_hidden.shape[1] == word_hidden.shape[1], 'seq_len do not match'
@@ -225,8 +176,11 @@ class CpcPipeline(nn.Module):
             embedB = torch.index_select(seq, 0, posB)
             wordB.append(torch.mean(embedB, dim=0))
 
+        # TODO (for Yilong): add returns here
+
 
 def FastCpcPipeline(CpcPipeline):
     def _extract_entities(self, batch, node_hidden, word_hidden):
-        # TODO: vectorize
+        # TODO (for Yilong): vectorize (what's this?)
+
         pass

@@ -23,6 +23,7 @@ from utils import make_dir, print_args, get_time
 from utils import LOG_DIR, DATA_DIR, CKPT_DIR
 from utils import LABELS, eval_metric
 from utils import ID2LABEL, ID2LABEL_ABSA
+from sklearn.metrics import f1_score
 
 
 def get_optimizer_and_scheduler(args, task, model):
@@ -57,25 +58,23 @@ def compose_msg(task, ep, batch_count, ttl_iter_num, loss,
         ttl_cpc_loss / cpc_batch_count,
         ttl_absa_loss / absa_batch_count
     )
-
     return msg
 
 
-def move_batch_to_gpu(batch):
+def move_batch_to_device(batch, device):
     """get all entries of tensors in the batch by `BATCH_TENSORS`
     and move them to GPU"""
     for field in BATCH_TENSORS:
-        batch[field] = batch[field].cuda()
+        batch[field] = batch[field].to(device)
     return batch
 
 
-def compute_metrics(on_gpu, pred_list, gt_list):
+def compute_metrics(pred_list, gt_list):
     """
     computing the performance using two lists of vectors
     Args:
-        on_gpu - whether the input vectors are on gpus
-        pred_list - list of torch tensors of predictions
-        gt_list - lits of torch tensor of ground truths
+        pred_list - list of numpy arrays predictions
+        gt_list - lits of numpy arrays of ground truths
     Return:
         metric_dict = 
             {
@@ -85,13 +84,12 @@ def compute_metrics(on_gpu, pred_list, gt_list):
                 "metric": f1(micro)
             }
     """
-    if on_gpu:
-        pred_list = [x.cpu() for x in pred_list]
-        gt_list = [x.cpu() for x in gt_list]
-    
-    pred_vec = np.concatenate([x.detach().numpy() for x in pred_list])
-    gt_vec = np.concatenate([x.detach().numpy() for x in gt_list])
-    return eval_metric(y_true=gt_vec, y_pred=pred_vec, labels=LABELS)
+    y_pred = np.concatenate(pred_list)
+    y_true = np.concatenate(gt_list)
+    each_class_f1 = f1_score(y_true, y_pred, lables=LABELS, average=None)
+    metric_dict = dict(zip(labels, each_class_f1))
+    metric_dict["micro"] = f1_score(y_true, y_pred, average="micro")
+    return metric_dict
 
 
 def compose_metric_perf_msg(metric_dict):
@@ -101,8 +99,19 @@ def compose_metric_perf_msg(metric_dict):
     return perf_msg
     
 
+def gen_domain_target(batch):
+    """Generate domain target. 
+        For CPC, generate (batch_size) zero vector
+        For ABSA, generate (2*batch_size) one vector
+    """
+    batch_size = len(batch['instance'])
+    if batch['task'] == CPC:
+        return torch.from_numpy(np.zeros(batch_size))
+    else:
+        return torch.from_numpy(np.ones(2*batch_size))
 
-def train(args, use_gpu, model, dataloader):
+
+def train(args, device, model, dataloader):
 
     logging.info(f"[info] start training ID:[{args.experimentID}]")
     print(f"[info] start training ID:[{args.experimentID}]")
@@ -116,6 +125,8 @@ def train(args, use_gpu, model, dataloader):
 
     # create loss function
     criterion = nn.CrossEntropyLoss()
+    if args.dom_adapt:
+        dom_criterion = nn.BCEWithLogitsLoss()
 
     total_iter_counter = 0
 
@@ -135,12 +146,14 @@ def train(args, use_gpu, model, dataloader):
             task = batch['task']
 
             # change it to use gpu
-            if use_gpu:
-                batch = move_batch_to_gpu(batch)
+            batch = move_batch_to_device(batch, device)
             
             # get prediction and target
-            pred = model(batch)
-            target = torch.tensor([x.get_label_id() for x in batch['instances']])
+            model_out = model(batch)
+            pred = model_out['prediction']
+            target = torch.tensor(
+                [x.get_label_id() for x in batch['instances']]).to(device)
+            
 
             # choose optimizer and zero grad
             if not args.use_single_optimizer and task == ABSA:
@@ -151,6 +164,11 @@ def train(args, use_gpu, model, dataloader):
 
             # compute loss, compute derivation, optimize
             loss = criterion(pred, target)
+            
+            if args.dom_adapt:
+                dom_pred = model_out['domain_prediction']
+                dom_target = gen_domain_target(batch).to(device)
+                loss += dom_criterion(dom_pred, dom_target)
             loss.backward()
             optim.step()
 
@@ -187,7 +205,7 @@ def train(args, use_gpu, model, dataloader):
         print(f"{get_time{}} [Perf][Epoch] {msg}")
 
         # compute and log training performance after each epoch
-        metric_dict = compute_metrics(use_gpu, predictions, groundtruths)
+        metric_dict = compute_metrics(predictions, groundtruths)
         perf_msg = compose_metric_perf_msg(metric_dict)
         logging.info(f"[Perf][Train][CPC][Epoch]{ep} " + perf_msg)
         print(f"{get_time()} [Perf][Train][CPC][Epoch]{ep} " + perf_msg)
@@ -215,21 +233,19 @@ def train(args, use_gpu, model, dataloader):
             print(f"{get_time()} [save] saving model: {model_name}")
 
 
-def evaluate(model, data_iter, restore_model_path, use_gpu, for_test):
+def evaluate(model, data_iter, restore_model_path, device, for_test):
     """
     Run validation or test, return a performance msg in metrics
     Args:
         model - the model
         data_iter - the data iterator for test/val data
         restore_model_path - the path to restore the current model
-        use_gpu - whether the model & tensors are on gpu
         for_test - True for testing, False for validation
     Return:
         perf_msg - performance message composed by `compose_metric_perf_msg`
     """
     model.eval()
     predictions, groundtruths = [], []
-    use_gpu = use_gpu and torch.cuda.is_available()
 
     task = "Test" if for_test else "Val"
 
@@ -240,19 +256,19 @@ def evaluate(model, data_iter, restore_model_path, use_gpu, for_test):
 
     with torch.no_grad():
         for i, eval_batch in enumerate(data_iter):
-            if use_gpu:
-                batch = move_batch_to_gpu(batch)
+            batch = move_batch_to_device(batch, device)
             eval_pred = model(batch)
-            eval_groundtruth =torch.tensor(
+            eval_pred = eval_pred['predictions'].to("cpu")
+            eval_groundtruth = np.array(
                 [x.get_label_id() for x in batch['instances']])
-            if use_gpu:
-                eval_pred = eval_pred.cpu()
-                eval_groundtruth = eval_groundtruth.cpu()
+            # eval_pred = eval_pred.cpu()
+            # eval_groundtruth = eval_groundtruth.cpu()
             predictions.append(eval_pred.detach().numpy())
-            groundtruths.append(eval_groundtruth.detach().numpy())
-        predictions = np.concatenate(predictions)
-        groundtruths = np.concatenate(groundtruths)
-        metric_dict = compute_metrics(use_gpu, predictions, groundtruths)
+            groundtruths.append(eval_groundtruth)
+
+        # compute metric performance
+        metric_dict = compute_metrics(predictions, groundtruths)
+        # compose a message for performance
         perf_msg = compose_metric_perf_msg(metric_dict)
     
     return perf_msg
@@ -284,8 +300,8 @@ if __name__ == "__main__":
 
     # training config
     parser.add_argument("--lr", type=float, default=0.005)
-    parser.add_argument("--absa_lr", type=float, default=0.005)
     parser.add_argument("--reg_weight", type=float, default=0.0001)
+    parser.add_argument("--dropout", type=float, default=0.3)
     parser.add_argument("--num_ep", type=int, default=10)
     parser.add_argument("--use_single_optimizer", action="store_true", default=False)
     parser.add_argument("--batch_size", type=int, default=64)
@@ -295,10 +311,21 @@ if __name__ == "__main__":
         help="Whether to conduct data augmentation for training set. Default=False.")
     
     # absa model config
+    # TODO: check optimal SRD config from paper
+    # TODO: dropout
+    # TODO: local_context_focus
+    parser.add_argument("--absa_lr", type=float, default=0.005)
     parser.add_argument("--absa_max_seq_len", type=str, default=80)
     parser.add_argument("--absa_dropout", type=float, default=0.2)
     parser.add_argument("--absa_local_context_focus", type=str, default="cdm",
         help="Local context focus option: can be `cdm` or `cdw`")
+    parser.add_argument("--absa_syntactic_relative_distance", type=int, default=3,
+        help="Syntactic relative distance")
+    
+    parser.add_argument("--activation", type=str, default="relu",
+        help="Activation function to use in our model")
+    parser.add_argument("--dom_adapt", action="store_true", default=False,
+        help="Whether to do domain adaptation")
 
 
     # logging 
@@ -343,13 +370,13 @@ if __name__ == "__main__":
     
     # Setup GPU device
     if torch.cuda.device_count() > 0:
-        use_gpu = True
         assert torch.cuda.device_count() > args.gpu_id
+        device = f"cuda:{args.gpu_id}"
         torch.cuda.set_device("cuda:"+str(args.gpu_id))
         msg = "[cuda] with {} gpus, using cuda:{}".format(
             torch.cuda.device_count(), args.gpu_id)
     else:
-        use_gpu = False
+        device = "cpu"
         msg = "[cuda] no gpus, using cpu"
 
 
@@ -363,17 +390,17 @@ if __name__ == "__main__":
     dataloader = DataLoader(args)
 
     # move model to cuda device
-    # TODO: check on models
-    model = SaeccModel(args)
-    if use_gpu:
-        model = model.cuda()
+    model = SaeccModel(args, device)
+    model = model.to(device)
 
     if args.task == "train":
-        train(args, use_gpu, model, dataloader)
+        train(args, device, model, dataloader)
     elif args.task == "test":
-        # TODO: fix here!
-        evaluate(model, dataloader=dataloader.get_batch_testval(for_test=True),
-            restore_model_path=args.load_model_path)
-        # TODO: add printing performance
+        perf_msg = evaluate(model, 
+            dataloader=dataloader.get_batch_testval(for_test=True),
+            restore_model_path=args.load_model_path, 
+            devic=device, for_test=True)
+        logging.info(f"[Perf-CPC][Test] {perf_msg}")
+        print(f"{get_time()} [Perf-CPC][Test] {msg}")
     else:
         raise ValueError("args.task can only be train or test")

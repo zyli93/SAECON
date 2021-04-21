@@ -12,3 +12,6 @@ DEPENDENCY_LABELS = {
     "prt": 40,          "punct": 41,        "quantmod": 42,     "relcl": 43, 
     "xcomp": 44
 }
+
+CPC = "CPC"
+ABSA = "ABSA"

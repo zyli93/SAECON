@@ -38,7 +38,6 @@ class ABSADataset(Dataset):
 
         # for using bert embeddings as input
 
-        # TODO: add handling of entity_B
 
         for each_sent in inputs:
 

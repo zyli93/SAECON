@@ -16,9 +16,8 @@ from torch_geometric.data import Data, Batch
 from utils import DATA_DIR
 from utils import load_pickle
 from utils import reverse_instance
+from constants import CPC, ABSA
 
-CPC = "CPC"
-ABSA = "ABSA"
 VAL_RATIO = 0.2
 BATCH_TENSORS = ['embedding', 'depgraph']
 
@@ -68,7 +67,6 @@ class DataLoader():
         fine_tune = True if args.input_emb == "ft" else False
         emb_model = "glove" if args.input_emb == "glove" else "bert"
 
-        # will need to load these either ways
         self.cpc_trn = load_pickle(DATA_DIR+"processed_cpc_train.pkl")
         self.cpc_tst = load_pickle(DATA_DIR+"processed_cpc_test.pkl")
         self.absa = load_pickle(DATA_DIR+"processed_absa.pkl")
@@ -76,6 +74,13 @@ class DataLoader():
         self.cpc_tst_depg = load_pickle(DATA_DIR+"cpc_test_depgraph.pkl")
 
         self.absa_len = len(self.absa)
+
+        self.cpc_trn_aspdistA = load_pickle(DATA_DIR+"cpc_train_aspect_distA.pkl")
+        self.cpc_trn_aspdistB = load_pickle(DATA_DIR+"cpc_train_aspect_distB.pkl")
+        self.cpc_tst_aspdistA = load_pickle(DATA_DIR+"cpc_test_aspect_distA.pkl")
+        self.cpc_tst_aspdistB = load_pickle(DATA_DIR+"cpc_test_aspect_distB.pkl")
+
+        self.absa_aspdist = load_pickle(DATA_DIR+"absa_aspect_dist.pkl")
 
         if not fine_tune:
             print("[DataLoader] loading data from disk ...")
@@ -137,15 +142,21 @@ class DataLoader():
                 instances = [self.cpc_trn[x] for x in indices]
                 emb = [self.cpc_trn_emb[x] for x in indices]
                 depg = [self.cpc_trn_depg[x] for x in indices]
+                aspdistA = [self.cpc_trn_aspdistA[x] for x in indices]
+                aspdistB = [self.cpc_trn_aspdistB[x] for x in indices]
             # CPC test
             else:
                 instances = [self.cpc_tst[x] for x in indices]
                 emb = [self.cpc_tst_emb[x] for x in indices]
                 depg = [self.cpc_tst_depg[x] for x in indices]
+                aspdistA = [self.cpc_tst_aspdistA[x] for x in indices]
+                aspdistB = [self.cpc_tst_aspdistB[x] for x in indices]
         else:
             instances = [self.absa[x] for x in indices]
             emb = [self.absa_emb[x] for x in indices]
             depg = None
+            aspdistA = [self.absa_aspdist[x] for x in indices]
+            aspdistB = None
 
         # batch dependency graph
         depg_list = [
@@ -159,8 +170,15 @@ class DataLoader():
         depg = Batch.from_data_list(depg_list)
         
         emb = pad_sequence(emb, batch_first=True)
-        return {"task": task, "instances": instances,
-            "embedding": emb, "depgraph": depg}
+
+        return {
+            "task": task, 
+            "instances": instances,
+            "embedding": emb, 
+            "depgraph": depg,
+            "aspdistA": aspdistA,
+            "aspdistB": aspdistB
+            }
     
 
     def __split_val_for_cpc(self):
