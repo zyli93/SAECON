@@ -46,7 +46,7 @@ class SaeccModel(nn.Module):
         dom_inv_dim = self.absa_pipeline.output_dim
         if args.dom_adapt:
             self.dom_inv = nn.Sequential(OrderedDict([
-                ('revgrad', RevGrad()),  # TODO: is this the right pos?
+                ('revgrad', RevGrad()), 
                 ('linear', nn.Linear(dom_inv_dim, 1)),
                 ('activ', get_activ('relu'))
             ]))
@@ -105,8 +105,7 @@ class CpcPipeline(nn.Module):
     def __init__(self, args):
         super().__init__()
         # global context
-        # TODO (for Yilong): add sgcn_dims to args
-        sgcn_dims = [args.emb_dim] + args.sgcn_dims
+        sgcn_dims = [args.emb_dim] + args.sgcn_dims + [args.feature_dim]
         self.sgcn_convs = [
             SGCNConv(
                 dim_in=d_in,
@@ -126,8 +125,7 @@ class CpcPipeline(nn.Module):
             bidirectional=True,
         )
 
-        # TODO (for Yilong): fix (remove *2)
-        self.output_dim = (args.feature_dim + args.sgcn_dims) * 2
+        self.output_dim = args.feature_dim * 2
 
     def forward(self, batch):
         # global context
@@ -144,7 +142,6 @@ class CpcPipeline(nn.Module):
         )
 
         # local context
-        # TODO (for Yilong): lstm out to -> feature_dim
         word_embedding = batch['embedding']
         word_hidden = self.lstm(word_embedding)[0] 
         bs, sl = word_hidden.size(0), word_hidden.size(1)
@@ -182,7 +179,7 @@ class CpcPipeline(nn.Module):
             embedB = torch.index_select(seq, 0, posB)
             wordB.append(torch.mean(embedB, dim=0))
 
-        # TODO (for Yilong): add returns here
+        return nodeA, nodeB, wordA, wordB
 
 
 def FastCpcPipeline(CpcPipeline):

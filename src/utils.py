@@ -110,7 +110,6 @@ class InstanceFeatures:
                  sentence_raw: str,
                  we_indices: list):
         """
-        TODO: entityA_pos is pretoken or bert token?
         Attributes of this class:
             self.task: can be either "CPC" or "ABSA"
             self.sample_id: an ID attached to a sample
@@ -130,8 +129,8 @@ class InstanceFeatures:
                 {1:0, 2:1, 3:1, 4:1, 5:2}.
             self.sentence: the tokenized and then `convert_tokens_to_sentence()`-ed
                 sentence.
-            self.sentence_raw: 
-            TODO what's the diff?
+            self.sentence_raw: raw text from dataset
+            self.entity{A/B}_pos: list of pretoken indices of an entity
             self.we_indices: Set to None for now.
         """
         self.task           = task

@@ -309,6 +309,9 @@ if __name__ == "__main__":
         help="Ratio of batch numbers for CPC and ABSA. Default: 1:1.")
     parser.add_argument("--data_augmentation", action="store_true", default=False,
         help="Whether to conduct data augmentation for training set. Default=False.")
+
+    # cpc model config
+    parser.add_argument("--sgcn_dims", nargs='+', type=int)
     
     # absa model config
     # TODO: check optimal SRD config from paper
