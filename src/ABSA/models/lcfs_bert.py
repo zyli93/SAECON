@@ -67,46 +67,45 @@ class LCFS_BERT(nn.Module):
         self.local_context_focus = args.absa_local_context_focus
         self.max_seq_len = args.absa_max_seq_len
         self.emb_dim = args.emb_dim
+        self.feat_dim = args.feature_dim
         self.SRD = args.absa_syntactic_relative_distance
 
         self.tokenizer = BertTokenizer.from_pretrained(args.bert_version)
         self.dropout = nn.Dropout(args.absa_dropout)
 
-        sa_config = BertConfig(hidden_size=self.hidden, output_attentions=True)
+        self.mean_pooling_double = PointwiseFeedForward(
+            d_hid=args.emb_dim*2, d_inner_hid=args.emb_dim, d_out=args.feature_dim)
+        sa_config = BertConfig(hidden_size=self.feature_dim, output_attentions=True)
         self.bert_sa = SelfAttention(sa_config, args.absa_max_seq_len, device)  
-
-        self.mean_pooling_double = PointwiseFeedForward(hidden * 2, hidden,hidden)
         self.bert_pooler = BertPooler(sa_config)
-        self.readout = nn.Linear(hidden, 3)  # Hard-coded polarities-dim = 3
+        self.readout = nn.Linear(args.feature_dim, 3)  # Hard-coded polarities-dim = 3
         self.output_dim = hidden
 
-    def feature_dynamic_mask(self, text_local_indices, distances_input=None):
-        texts = text_local_indices
+    def feature_dynamic_mask(self, batch_size, distances_input=None):
         mask_len = self.SRD
 
-        # masked_text_raw_indices (batch_size, self.max_seq_len, self.hidden)
+        # masked_text_raw_indices (batch_size, self.max_seq_len, self.emb_dim)
         masked_text_raw_indices = np.ones(
-            (len(text_local_indices), self.max_seq_len, self.hidden),
-            dtype=np.float32) # batch_size x seq_len x hidden size
-        for text_i in range(len(texts)):
+            (batch_size, self.max_seq_len, self.emb_dim),
+            dtype=np.float32) # batch_size x seq_len x emb_dim
+        for text_i in range(batch_size):
             distances_i = distances_input[text_i]
             for i,dist in enumerate(distances_i):
                 if dist > mask_len:
                     masked_text_raw_indices[text_i][i] = np.zeros(
-                        (self.hidden), dtype=np.float)
+                        (self.emb_dim), dtype=np.float)
 
         masked_text_raw_indices = torch.from_numpy(masked_text_raw_indices)
         masked_text_raw_indices = masked_text_raw_indices.to(self.device)
         return masked_text_raw_indices
         
 
-    def feature_dynamic_weighted(self, text_local_indices, distances_input=None):
-        texts = text_local_indices
+    def feature_dynamic_weighted(self, batch_size, distances_input=None):
         masked_text_raw_indices = np.ones(
-            (len(text_local_indices), self.max_seq_len, self.emb_dim),
-            dtype=np.float32) # batch x seq x dim
+            (batch_size, self.max_seq_len, self.emb_dim),
+            dtype=np.float32) # batch_size x seq_len x emb_dim
         mask_len = self.SRD
-        for text_i in range(len(text_local_indices)):
+        for text_i in range(batch_size):
             distances_i = distances_input[text_i] # distances of batch i-th
             for i,dist in enumerate(distances_i):
                 if dist > mask_len:
@@ -128,22 +127,21 @@ class LCFS_BERT(nn.Module):
         inputs = self.convert_batch_to_absa_batch(original_batch, switch)
 
         bert_embedding = inputs["bert_embedding"]
-        text_local_indices = inputs['text_raw_bert_indices']
         distances = inputs['dep_distance_to_aspect']
         bert_local_out = bert_embedding
+        batch_size = bert_embedding.size(0)
 
         if self.local_context_focus == 'cdm':
             masked_local_text_vec = self.feature_dynamic_mask(
-                text_local_indices, 
-                distances)
+                batch_size, distances)
             bert_local_out = torch.mul(bert_local_out, masked_local_text_vec)
 
         elif self.local_context_focus == 'cdw':
             weighted_text_local_features = self.feature_dynamic_weighted(
-                text_local_indices, 
-                distances)
+                batch_size, distances)
             bert_local_out = torch.mul(bert_local_out, weighted_text_local_features)
 
+        # out_cat: batch_size, seq_len, 2*emb_dim
         out_cat = torch.cat((bert_local_out, bert_embedding), dim=-1)
         mean_pool = self.mean_pooling_double(out_cat)
         self_attention_out, local_att = self.bert_sa(mean_pool)
@@ -168,16 +166,10 @@ class LCFS_BERT(nn.Module):
 
         padded_emb = pad_to_fixedlength(emb, self.max_seq_len)  # (batch_size, absa_fix_len)
 
-        # text_raw_bert_indices, token_dist_list: both are list of lists
-        text_raw_bert_indices = [ins.get_token_ids() 
-            for ins in original_batch['instances']]
         token_dist_list = original_batch[aspect_dist] 
-
-        # check text_raw_bert_indices have the same length as token_dist_list
         
         absa_batch = {
             "bert_embedding": padded_emb,  # Padded, tensor
-            "text_raw_bert_indices": text_raw_bert_indices,  # variable length
             "dep_distance_to_aspect": token_dist_list  # variable length
         }
         return absa_batch

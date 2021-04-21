@@ -31,23 +31,24 @@ class SaeccModel(nn.Module):
         self.cpc_pipeline = CpcPipeline(args)
         self.absa_pipeline = LCFS_BERT(args, device)
 
+        # cpc_pipeline.output_dim = `feature_dim` for word + `feature_dim` for node
+        # absa_pipeline.output_dim = feature_dim
         pipeline_output_dim = self.cpc_pipeline.output_dim + self.absa_pipeline.output_dim
-        readout_hidden_dim = pipeline_output_dim // 2
 
         # CPC readout layer
         self.cpc_readout = nn.Sequential(OrderedDict([
-          ('linear1', nn.Linear(pipeline_output_dim, readout_hidden_dim)),
+          ('linear1', nn.Linear(2*pipeline_output_dim, pipeline_output_dim)),
           ('activ1', get_activ(args.activation)),
           ('dropout', nn.Dropout(args.dropout)),
-          ('linear2', nn.Linear(readout_hidden_dim, 3))
+          ('linear2', nn.Linear(pipeline_output_dim, 3))
         ]))
 
-        dom_inv_dim = self.cpc_pipeline.output_dim
+        dom_inv_dim = self.absa_pipeline.output_dim
         if args.dom_adapt:
             self.dom_inv = nn.Sequential(OrderedDict([
-                ('linear', nn.Linear(dom_inv_dim, 2)),
-                ('activ', get_activ('relu')),
-                ('revgrad', RevGrad())  # TODO: rev grad position right?
+                ('revgrad', RevGrad()),  # TODO: is this the right pos?
+                ('linear', nn.Linear(dom_inv_dim, 1)),
+                ('activ', get_activ('relu'))
             ]))
 
         self._reset_params()
@@ -61,6 +62,8 @@ class SaeccModel(nn.Module):
             hidden_absa_entA, _ = self.absa_pipeline(batch)
             hidden_absa_entB, _ = self.absa_pipeline(batch, switch=True)
 
+            # TODO: make sure all (batch_size, feature_dim)
+            # After cat: (batch_size, 3*feature_dim)
             hidden_entA = torch.cat(
                 [hidden_cpc['nodeA'], hidden_cpc['wordA'], hidden_absa_entA], 1)
             hidden_entB = torch.cat(
@@ -69,6 +72,8 @@ class SaeccModel(nn.Module):
             # CPC readout
             pred = self.cpc_readout(
                 torch.cat([hidden_entA, hidden_entB], dim=1))
+            
+            # hidden_absa: (2*batch_size, feature_dim)
             hidden_absa = torch.cat([hidden_absa_entA, hidden_absa_entB])
 
         # ABSA. absa_pipeline outputs: pooled_out, prediction
@@ -76,8 +81,8 @@ class SaeccModel(nn.Module):
             hidden_absa, pred = self.absa_pipeline(batch)
         
         if self.use_dom_inv:
-            dom_pred = self.dom_inv(hidden_absa)
-            return {'prediction': pred, "domain_prediction": dom_pred}
+            dom_logit = self.dom_inv(hidden_absa)
+            return {'prediction': pred, "domain_logit": dom_logit}
 
         return {'prediction': pred}
 
@@ -100,8 +105,8 @@ class CpcPipeline(nn.Module):
     def __init__(self, args):
         super().__init__()
         # global context
-        sgcn_convs = []
-        sgcn_dims = [args.embed_dim] + args.sgcn_dims
+        # TODO (for Yilong): add sgcn_dims to args
+        sgcn_dims = [args.emb_dim] + args.sgcn_dims
         self.sgcn_convs = [
             SGCNConv(
                 dim_in=d_in,
@@ -115,13 +120,14 @@ class CpcPipeline(nn.Module):
         # local context
         # (batch, seq_len, 2*hidden)
         self.lstm = nn.LSTM(
-            input_size=args.embed_dim,
-            hidden_size=args.hidden_dim,
+            input_size=args.emb_dim,
+            hidden_size=args.feature_dim,
             batch_first=True,
             bidirectional=True,
         )
 
-        self.output_dim = (args.hidden_dim + args.sgcn_dims) * 2
+        # TODO (for Yilong): fix (remove *2)
+        self.output_dim = (args.feature_dim + args.sgcn_dims) * 2
 
     def forward(self, batch):
         # global context
@@ -138,6 +144,7 @@ class CpcPipeline(nn.Module):
         )
 
         # local context
+        # TODO (for Yilong): lstm out to -> feature_dim
         word_embedding = batch['embedding']
         word_hidden = self.lstm(word_embedding)[0] 
         bs, sl = word_hidden.size(0), word_hidden.size(1)

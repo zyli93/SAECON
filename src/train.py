@@ -106,9 +106,9 @@ def gen_domain_target(batch):
     """
     batch_size = len(batch['instance'])
     if batch['task'] == CPC:
-        return torch.from_numpy(np.zeros(batch_size))
+        return torch.from_numpy(np.zeros(2*batch_size))
     else:
-        return torch.from_numpy(np.ones(2*batch_size))
+        return torch.from_numpy(np.ones(batch_size))
 
 
 def train(args, device, model, dataloader):
@@ -153,7 +153,6 @@ def train(args, device, model, dataloader):
             pred = model_out['prediction']
             target = torch.tensor(
                 [x.get_label_id() for x in batch['instances']]).to(device)
-            
 
             # choose optimizer and zero grad
             if not args.use_single_optimizer and task == ABSA:
@@ -166,7 +165,7 @@ def train(args, device, model, dataloader):
             loss = criterion(pred, target)
             
             if args.dom_adapt:
-                dom_pred = model_out['domain_prediction']
+                dom_pred = model_out['domain_logit']
                 dom_target = gen_domain_target(batch).to(device)
                 loss += dom_criterion(dom_pred, dom_target)
             loss.backward()
@@ -297,6 +296,7 @@ if __name__ == "__main__":
     parser.add_argument("--emb_dim", type=int, 
         help="Embedding dimension of Bert or Glove embedding")
     parser.add_argument("--glove_dim", type=int, default=100)
+    parser.add_argument("--feature_dim", type=int, default=100) # TODO: what's the dim here?
 
     # training config
     parser.add_argument("--lr", type=float, default=0.005)
