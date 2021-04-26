@@ -63,6 +63,9 @@ def convert_Target_to_Instance(tgt:Target, bert_tokenizer, pretokenizer,
     sentence_from_tokens = bert_tokenizer.convert_tokens_to_string(tokens)
     entityA_pos = get_entity_pos(doc, pretokenizer(target))
 
+    if not entityA_pos:
+        return None
+
     return InstanceFeatures(
         task=task, sample_id=sample_id, pretokens=pretokens, tokens=tokens, 
         entityA=target, entityB=None,
@@ -90,6 +93,8 @@ def preprocess_cpc(file_path, bert_tokenizer, pretokenizer):
 
     with open(file_path, 'r') as f:
         reader = csv.DictReader(f)
+
+        index_counter = 0
 
         for idx, row in tqdm(enumerate(reader)):
             sentence = sep_slash(row['sentence'])
@@ -119,7 +124,7 @@ def preprocess_cpc(file_path, bert_tokenizer, pretokenizer):
 
             cpc_data_features.append(
                 InstanceFeatures(
-                    task=CPC, sample_id=idx, 
+                    task=CPC, sample_id=index_counter, 
                     entityA=entityA, entityA_pos=entityA_pos, 
                     entityB=entityB, entityB_pos=entityB_pos,
                     pretokens=pretokens, tokens=tokens, token_ids=token_ids,
@@ -128,6 +133,7 @@ def preprocess_cpc(file_path, bert_tokenizer, pretokenizer):
                     sentence=sentence_from_tokens, sentence_raw=sentence,
                     we_indices=None
                 ))
+            index_counter += 1
 
     return cpc_data_features
 
@@ -211,9 +217,13 @@ def preprocess_absa(bert_tokenizer, pretokenizer):
     all_data_targets.extend(res16_data.data())
 
     all_data_instances = []
+    index_counter = 0
     for idx, target in tqdm(enumerate(all_data_targets)):
-        all_data_instances.append(convert_Target_to_Instance(
-            target, bert_tokenizer, pretokenizer, task=ABSA, sample_id=idx))
+        instance = convert_Target_to_Instance(
+            target, bert_tokenizer, pretokenizer, task=ABSA, sample_id=index_counter)
+        if instance:
+            all_data_instances.append(instance)
+            index_counter += 1
     
     return all_data_instances
     

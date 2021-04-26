@@ -17,7 +17,7 @@ python src/preprocess.py \
     --process_cpc_instances
 
 # example training and validation
-python scr/train.py \
+python src/train.py \
     --experimentID 0000 \
     --task train \
     --gpu_id 1 \

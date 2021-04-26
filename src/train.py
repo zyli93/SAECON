@@ -201,7 +201,7 @@ def train(args, device, model, dataloader):
         msg = compose_msg(CPC, ep, 0, 0, 0, total_cpc_loss, cpc_batch_count,
             total_absa_loss, absa_batch_count)
         logging.info("[Perf][Epoch] " + msg)
-        print(f"{get_time{}} [Perf][Epoch] {msg}")
+        print(f"{get_time()} [Perf][Epoch] {msg}")
 
         # compute and log training performance after each epoch
         metric_dict = compute_metrics(predictions, groundtruths)

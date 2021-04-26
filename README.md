@@ -26,6 +26,24 @@ bash get_ready.sh
 ```
 Bert is also integrated in the package `transformers`. Our code will take care of downloading pretrained weights and tokenizers(many thanks to [Hugging Face](https://huggingface.co/) Team who made this possible!).
 
+There's a special requirement for PyTorch-geometric which help GCN implementation.
+On our machine, we have PyTorch version `1.8.1+cu102` and CUDA version `10.2`. Therefore, we replace `${TORCH}+${CUDA}` with `1.8.1+cu102`.
+```
+pip install torch-scatter -f https://pytorch-geometric.com/whl/torch-${TORCH}+${CUDA}.html
+pip install torch-sparse -f https://pytorch-geometric.com/whl/torch-${TORCH}+${CUDA}.html
+pip install torch-cluster -f https://pytorch-geometric.com/whl/torch-${TORCH}+${CUDA}.html
+pip install torch-spline-conv -f https://pytorch-geometric.com/whl/torch-${TORCH}+${CUDA}.html
+pip install torch-geometric
+```
+
+```
+pip install torch-scatter -f https://pytorch-geometric.com/whl/torch-1.8.1+cu102.html
+pip install torch-sparse -f https://pytorch-geometric.com/whl/torch-1.8.1+cu102.html
+pip install torch-cluster -f https://pytorch-geometric.com/whl/torch-1.8.1+cu102.html
+pip install torch-spline-conv -f https://pytorch-geometric.com/whl/torch-1.8.1+cu102.html
+```
+
+
 ### GloVe
 Please download pretrained GloVe word embeddings from [here](https://nlp.stanford.edu/projects/glove/). The dimension is open to selection. However, GloVe embedding format doesn't inherently work well with `KeyedVectors` class in `gensim`. So please first convert GloVe embeddings to word2vec format following this [link](https://radimrehurek.com/gensim/scripts/glove2word2vec.html). Transformed GloVe embedding dumps should be placed in `./data/glove/glove.6B.[dim]d.word2vec_format.txt`. The `[dim]` should be replaced by the dimension of selection.
 
