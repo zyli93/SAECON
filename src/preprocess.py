@@ -17,6 +17,7 @@
 """
 
 import sys
+import re
 import csv
 import argparse
 from tqdm import tqdm
@@ -74,6 +75,16 @@ def convert_Target_to_Instance(tgt:Target, bert_tokenizer, pretokenizer,
 # Return a list of InstanceFeatures. One InstanceFeature for each sentence.
 def preprocess_cpc(file_path, bert_tokenizer, pretokenizer):
 
+    def sep_slash(s):
+        """separate tokens by slashes, e.g., "apple/banana" -> "apple / banana" """
+        s = s.replace("-", " ")
+        s = re.sub('([.,!?()-+/])', r' \1 ', s)
+        s = re.sub('\s{2,}', ' ', s)
+        return s
+    
+    def merge_dash(s):
+        return s.replace("-", " ")
+
     # return values
     cpc_data_features = []
 
@@ -81,10 +92,11 @@ def preprocess_cpc(file_path, bert_tokenizer, pretokenizer):
         reader = csv.DictReader(f)
 
         for idx, row in tqdm(enumerate(reader)):
-            sentence = row['sentence']
+            sentence = sep_slash(row['sentence'])
+
             label = row['most_frequent_label']
-            entityA = row['object_a']
-            entityB = row['object_b']
+            entityA = merge_dash(row['object_a'])
+            entityB = merge_dash(row['object_b'])
 
             # spacy pretokenization
             doc = pretokenizer(sentence)
@@ -101,6 +113,9 @@ def preprocess_cpc(file_path, bert_tokenizer, pretokenizer):
             # get entity positions
             entityA_pos = get_entity_pos(doc, pretokenizer(entityA))
             entityB_pos = get_entity_pos(doc, pretokenizer(entityB))
+            
+            if not entityA_pos or not entityB_pos:
+                continue
 
             cpc_data_features.append(
                 InstanceFeatures(
@@ -244,6 +259,7 @@ def preprocess_aspect_dist(instance_features, depgraphs, entity):
     n_instances = len(instance_features)
     
     dists = [] 
+    no_aspect_pos = 0
     for i in tqdm(range(n_instances)):
         ins = instance_features[i]
         depg = depgraphs[i]
@@ -254,11 +270,30 @@ def preprocess_aspect_dist(instance_features, depgraphs, entity):
         aspect_pos = getattr(ins, f"entity{entity}_pos")
         n_pretokens = len(ins.pretokens)
 
+        if not aspect_pos:
+            no_aspect_pos += 1
+            # print(n_pretokens)
+            # print(edges)
+            print(ins.get_entities())
+            # print(ins.entityA_pos)
+            print(ins.sentence_raw)
+            print(ins.sentence)
+            # print(ins.sample_id)
+            continue
+
         graph = nx.Graph(edges)
 
         dist = []
         for i in range(n_pretokens):
             sum_ = 0
+            # if not aspect_pos:
+            #     print(n_pretokens)
+            #     print(edges)
+            #     print(ins.get_entities())
+            #     print(ins.entityA_pos)
+            #     print(ins.sentence_raw)
+            #     print(ins.sentence)
+            #     print(ins.sample_id)
             for pos in aspect_pos:
                 try:
                     sum_ += nx.shortest_path_length(graph, source=i, target=pos)
@@ -268,6 +303,7 @@ def preprocess_aspect_dist(instance_features, depgraphs, entity):
 
         dists.append(dist)
     
+    print(f"# of no aspect pos {no_aspect_pos}")
     return dists
 
 
@@ -392,6 +428,12 @@ if __name__ == "__main__":
         print("\t\t ABSA data ...")
         absa_depg = preprocess_depgraph(absa_data, nlp)
         dump_pickle(DATA_DIR+"absa_depgraph.pkl", absa_depg)
+    
+    else:
+        print("[preprocess] loading dependency graph of cpc and absa")
+        cpc_trn_depg = load_pickle(DATA_DIR+"cpc_train_depgraph.pkl")
+        cpc_tst_depg = load_pickle(DATA_DIR+"cpc_test_depgraph.pkl")
+        absa_depg = load_pickle(DATA_DIR+"absa_depgraph.pkl")
 
     if args.generate_aspect_dist:
         

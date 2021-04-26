@@ -277,7 +277,7 @@ if __name__ == "__main__":
 
     # environment config
     parser.add_argument("--experimentID", type=str, required=True, help="The ID of the experiments")
-    parser.add_argument("--task", type=str, required=True, help="Train/Test?")
+    parser.add_argument("--task", type=str, required=True, help="train/test?")
     parser.add_argument("--gpu_id", type=int, required=True)
     parser.add_argument("--random_seed", type=int, default=2021)
     parser.add_argument("--shuffle", action="store_true", default=False,
@@ -314,15 +314,15 @@ if __name__ == "__main__":
     parser.add_argument("--sgcn_dims", nargs='+', type=int)
     
     # absa model config
-    # TODO: check optimal SRD config from paper
-    # TODO: dropout
-    # TODO: local_context_focus
+    # TODO: check optimal SRD config from paper = 4
+    # TODO: dropout = 0
+    # TODO: local_context_focus = CDW
     parser.add_argument("--absa_lr", type=float, default=0.005)
     parser.add_argument("--absa_max_seq_len", type=str, default=80)
     parser.add_argument("--absa_dropout", type=float, default=0.2)
-    parser.add_argument("--absa_local_context_focus", type=str, default="cdm",
+    parser.add_argument("--absa_local_context_focus", type=str, default="cdw",
         help="Local context focus option: can be `cdm` or `cdw`")
-    parser.add_argument("--absa_syntactic_relative_distance", type=int, default=3,
+    parser.add_argument("--absa_syntactic_relative_distance", type=int, default=4,
         help="Syntactic relative distance")
     
     parser.add_argument("--activation", type=str, default="relu",
