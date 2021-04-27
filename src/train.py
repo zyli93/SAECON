@@ -21,7 +21,7 @@ from dataloader import DataLoader
 from dataloader import CPC, ABSA, BATCH_TENSORS
 from utils import make_dir, print_args, get_time
 from utils import LOG_DIR, DATA_DIR, CKPT_DIR
-from utils import LABELS, eval_metric
+from utils import LABELS
 from utils import ID2LABEL, ID2LABEL_ABSA
 from sklearn.metrics import f1_score
 
@@ -296,7 +296,8 @@ if __name__ == "__main__":
     parser.add_argument("--emb_dim", type=int, 
         help="Embedding dimension of Bert or Glove embedding")
     parser.add_argument("--glove_dim", type=int, default=100)
-    parser.add_argument("--feature_dim", type=int, default=100) # TODO: what's the dim here?
+    parser.add_argument("--feature_dim", type=int, default=100) 
+    # TODO: fix dimension of sgcn_dims and feature_dim
 
     # training config
     parser.add_argument("--lr", type=float, default=0.005)
@@ -312,11 +313,9 @@ if __name__ == "__main__":
 
     # cpc model config
     parser.add_argument("--sgcn_dims", nargs='+', type=int)
+    parser.add_argument("--sgcn_gating", action="store_true", default=False)
     
     # absa model config
-    # TODO: check optimal SRD config from paper = 4
-    # TODO: dropout = 0
-    # TODO: local_context_focus = CDW
     parser.add_argument("--absa_lr", type=float, default=0.005)
     parser.add_argument("--absa_max_seq_len", type=str, default=80)
     parser.add_argument("--absa_dropout", type=float, default=0.2)
@@ -330,7 +329,6 @@ if __name__ == "__main__":
     parser.add_argument("--dom_adapt", action="store_true", default=False,
         help="Whether to do domain adaptation")
 
-
     # logging 
     parser.add_argument("--log_batch_num", type=int, default=100)
     parser.add_argument("--absa_log_batch_num", type=int, default=100)
@@ -338,7 +336,7 @@ if __name__ == "__main__":
     # validation
     parser.add_argument("--eval_per_ep", type=int, default="100",
         help="Run validation every this number of epochs. Default=100 (No val)")
-    parser.add_argument("--eval_after_num", type=int, default="100",
+    parser.add_argument("--eval_after_epnum", type=int, default="100",
         help="Start to run validation after this num of epochs. Default=100 (No val)")
     
     # model saving

@@ -15,7 +15,7 @@ import networkx as nx
 import spacy
 from utils import InstanceFeatures
 from transformers import BertTokenizer
-from torch.utils.rnn import pad_sequence
+from torch.nn.utils.rnn import pad_sequence
 
 
 def pad_or_truncate(sequence, maxlen, dtype='int64', padding='post', truncating='post', value=0):

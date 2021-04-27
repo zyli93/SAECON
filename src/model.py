@@ -7,6 +7,10 @@
     Date created: March 11, 2020
     Python version: 3.6.0
 
+    # TODO: feature dim should be divisible by 12
+    # TODO: how to handle entity phrases?
+    # TODO: add directed as an option
+
 """
 import math
 from collections import OrderedDict
@@ -57,7 +61,7 @@ class SaeccModel(nn.Module):
         # TODO: check on the dimensions
 
         # CPC. cpc_pipeline outputs a dict of `nodeA`, `nodeB`, `wordA`, and `wordB`
-        if batch.task == CPC:
+        if batch['task'] == CPC:
             hidden_cpc = self.cpc_pipeline(batch)
             hidden_absa_entA, _ = self.absa_pipeline(batch)
             hidden_absa_entB, _ = self.absa_pipeline(batch, switch=True)
@@ -88,8 +92,9 @@ class SaeccModel(nn.Module):
 
 
     def _reset_params(self):
-        initializer = torch.nn.init.xavier_normal
-        for child in self.model.children():
+        initializer = torch.nn.init.xavier_normal_
+        for child in self.children():
+            print(child)
             if type(child) == BertModel:  # skip bert params
                 continue
             for p in child.parameters():
@@ -104,9 +109,28 @@ class SaeccModel(nn.Module):
 class CpcPipeline(nn.Module):
     def __init__(self, args):
         super().__init__()
+        print("args.sgcn_dims")
+        print(args.sgcn_dims)
+        """
+        #   emb_dim -> sgcn_dim0, 
+        #   sgcn_dim0 -> sgcn_dim1 -> ... -> sgcn_dim[-1]
+        #   sgcn_dim[-1] -> feature_dim
+        """
         # global context
         sgcn_dims = [args.emb_dim] + args.sgcn_dims + [args.feature_dim]
-        self.sgcn_convs = [
+
+        # TODO: from children printout: params not properly registered
+        # self.sgcn_convs = [
+        #     SGCNConv(
+        #         dim_in=d_in,
+        #         dim_out=d_out,
+        #         num_labels=len(DEPENDENCY_LABELS),
+        #         gating=args.sgcn_gating
+        #     )
+        #     for d_in, d_out in zip(sgcn_dims[:-1], sgcn_dims[1:])
+        # ]
+
+        self.sgcn_convs = nn.ModuleList([
             SGCNConv(
                 dim_in=d_in,
                 dim_out=d_out,
@@ -114,7 +138,8 @@ class CpcPipeline(nn.Module):
                 gating=args.sgcn_gating
             )
             for d_in, d_out in zip(sgcn_dims[:-1], sgcn_dims[1:])
-        ]
+        ])
+
 
         # local context
         # (batch, seq_len, 2*hidden)
@@ -130,12 +155,18 @@ class CpcPipeline(nn.Module):
     def forward(self, batch):
         # global context
         depgraph = batch['depgraph']
+        # depgraph: Batch
+        # depgraph.edge_index: Tensor (on device)
+        # depgraph.edge_attr: Tensor (on device)
+
+        # TODO: verify this part w/ Yilong
         for conv in self.sgcn_convs:
             depgraph.x = conv(
                 x=depgraph.x,
                 edge_index=depgraph.edge_index,
                 edge_label=depgraph.edge_attr
             )
+
         node_hidden = pad_sequence(
             [dg.x for dg in depgraph.to_data_list()],
             batch_first=True

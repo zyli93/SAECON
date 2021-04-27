@@ -19,7 +19,7 @@ from utils import reverse_instance
 from constants import CPC, ABSA
 
 VAL_RATIO = 0.2
-BATCH_TENSORS = ['embedding', 'depgraph']
+BATCH_TENSORS = ['embedding', 'depgraph', ]
 
 class DataLoader():
     def __init__(self, args):
@@ -82,6 +82,7 @@ class DataLoader():
 
         self.absa_aspdist = load_pickle(DATA_DIR+"absa_aspect_dist.pkl")
 
+        print(fine_tune)
         if not fine_tune:
             print("[DataLoader] loading data from disk ...")
             self.cpc_trn_emb = load_pickle(
@@ -108,8 +109,9 @@ class DataLoader():
     def __data_augmentation(self, fine_tune):
         id_ = len(self.cpc_trn)
         new_indices = []
-        for ins in self.cpc_trn_indices:
+        for idx in self.cpc_trn_indices:
             # reverse a single training instance 
+            ins = self.cpc_trn[idx]
             if ins.get_label() != "NONE":
                 ins_id = ins.get_sample_id()
                 rev_ins = reverse_instance(ins, sample_id=id_)

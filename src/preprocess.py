@@ -253,9 +253,9 @@ def preprocess_depgraph(instance_features, lang_parser):
                 edge_index.append([token.i, child.i])
                 edge_label.append(DEPENDENCY_LABELS[child.dep_])
 
-        edge_index = torch.tensor(edge_index, dtype=torch.int)
+        edge_index = torch.tensor(edge_index, dtype=torch.long)
         edge_index = torch.t(edge_index).contiguous()
-        edge_label = torch.tensor(edge_label, dtype=torch.int)
+        edge_label = torch.tensor(edge_label, dtype=torch.long)
         all_depgraph[idx] = {
             'edge_index': edge_index,
             'edge_label': edge_label

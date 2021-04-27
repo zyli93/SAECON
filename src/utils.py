@@ -191,6 +191,9 @@ class InstanceFeatures:
     
     def get_sentence_raw(self):
         return self.sentence_raw
+    
+    def get_pretokens(self):
+        return self.pretokens
 
 
 def wordpiece2word(emb, wp2wd, use_gpu):
@@ -256,6 +259,7 @@ def reverse_instance(ins, sample_id):
         token_to_orig_map=ins.get_token_to_orig_map(), 
         sentence=ins.get_sentence(),
         sentence_raw=ins.get_sentence_raw(), 
+        pretokens=ins.get_pretokens(),
         we_indices=None)
 
     

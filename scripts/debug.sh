@@ -14,24 +14,35 @@ python src/preprocess.py \
 
 python src/preprocess.py \
     --gpu_id 1 \
+    --generate_dep_graph \
+    --generate_aspect_dist
+
+
+python src/preprocess.py \
+    --gpu_id 1 \
     --process_cpc_instances
 
 # example training and validation
+
+# NOTE:
+#   1. change input_emb and emb_dim simultaneously!
 python src/train.py \
     --experimentID 0000 \
     --task train \
     --gpu_id 1 \
     --use_lr_scheduler \
-    --input_emb ft \
-    --emb_dim 768 \
-    --feature_dim 128 \
+    --input_emb glove \
+    --emb_dim 100 \
+    --feature_dim 120 \
     --lr 0.0001 \
     --reg_weight 0.00001 \
     --dropout 0.1 \
     --num_ep 3 \
     --batch_size 16 \
-    --bath_ratio 1:1 \
+    --batch_ratio 1:1 \
     --data_augmentation \
     --dom_adapt \
     --eval_per_ep 1 \
-    --eval_after_ep 1
+    --eval_after_epnum 1 \
+    --sgcn_dims 128 \
+    --sgcn_gating

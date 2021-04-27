@@ -8,7 +8,7 @@ import torch.nn as nn
 import copy
 import numpy as np
 
-from transformers.modeling_bert import BertPooler, BertSelfAttention, BertConfig
+from transformers.models.bert.modeling_bert import BertPooler, BertSelfAttention, BertConfig
 
 from ABSA.data_utils import pad_to_fixedlength
 from transformers import BertTokenizer
@@ -33,6 +33,7 @@ class PointwiseFeedForward(nn.Module):
         return output
 
 class SelfAttention(nn.Module):
+    # TODO: make sure this config works with GloVe
     def __init__(self, config, max_seq_len, device):
         super(SelfAttention, self).__init__()
         self.config = config
@@ -67,7 +68,7 @@ class LCFS_BERT(nn.Module):
         self.local_context_focus = args.absa_local_context_focus
         self.max_seq_len = args.absa_max_seq_len
         self.emb_dim = args.emb_dim
-        self.feat_dim = args.feature_dim
+        self.feature_dim = args.feature_dim
         self.SRD = args.absa_syntactic_relative_distance
 
         self.tokenizer = BertTokenizer.from_pretrained(args.bert_version)
