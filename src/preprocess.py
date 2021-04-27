@@ -78,7 +78,7 @@ def convert_Target_to_Instance(tgt:Target, bert_tokenizer, pretokenizer,
 # Return a list of InstanceFeatures. One InstanceFeature for each sentence.
 def preprocess_cpc(file_path, bert_tokenizer, pretokenizer):
 
-    def sep_slash(s):
+    def sep_punkt(s):
         """separate tokens by slashes, e.g., "apple/banana" -> "apple / banana" """
         s = s.replace("-", " ")
         s = re.sub('([.,!?()-+/])', r' \1 ', s)
@@ -97,7 +97,7 @@ def preprocess_cpc(file_path, bert_tokenizer, pretokenizer):
         index_counter = 0
 
         for idx, row in tqdm(enumerate(reader)):
-            sentence = sep_slash(row['sentence'])
+            sentence = sep_punkt(row['sentence'])
 
             label = row['most_frequent_label']
             entityA = merge_dash(row['object_a'])
@@ -269,7 +269,6 @@ def preprocess_aspect_dist(instance_features, depgraphs, entity):
     n_instances = len(instance_features)
     
     dists = [] 
-    no_aspect_pos = 0
     for i in tqdm(range(n_instances)):
         ins = instance_features[i]
         depg = depgraphs[i]
@@ -279,17 +278,6 @@ def preprocess_aspect_dist(instance_features, depgraphs, entity):
         edges = torch.t(edges).tolist()
         aspect_pos = getattr(ins, f"entity{entity}_pos")
         n_pretokens = len(ins.pretokens)
-
-        if not aspect_pos:
-            no_aspect_pos += 1
-            # print(n_pretokens)
-            # print(edges)
-            print(ins.get_entities())
-            # print(ins.entityA_pos)
-            print(ins.sentence_raw)
-            print(ins.sentence)
-            # print(ins.sample_id)
-            continue
 
         graph = nx.Graph(edges)
 
