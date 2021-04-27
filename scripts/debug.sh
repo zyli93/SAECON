@@ -45,4 +45,5 @@ python src/train.py \
     --eval_per_ep 1 \
     --eval_after_epnum 1 \
     --sgcn_dims 128 \
-    --sgcn_gating
+    --sgcn_gating \
+    --sgcn_directed

@@ -135,7 +135,8 @@ class CpcPipeline(nn.Module):
                 dim_in=d_in,
                 dim_out=d_out,
                 num_labels=len(DEPENDENCY_LABELS),
-                gating=args.sgcn_gating
+                gating=args.sgcn_gating,
+                directed=args.sgcn_directed
             )
             for d_in, d_out in zip(sgcn_dims[:-1], sgcn_dims[1:])
         ])

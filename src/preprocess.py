@@ -301,7 +301,7 @@ def preprocess_aspect_dist(instance_features, depgraphs, entity):
 
         dists.append(dist)
     
-    print(f"# of no aspect pos {no_aspect_pos}")
+    # print(f"# of no aspect pos {no_aspect_pos}")
     return dists
 
 

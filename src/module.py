@@ -29,8 +29,6 @@ class SGCNDir(MessagePassing):
         # edge_index has shape [2, E]
         # edge_label has shape [E]
 
-        x = torch.matmul(x, self.W_dir)
-
         b_lab = torch.index_select(self.b_lab, 0, edge_label)
         b_lab_g = torch.index_select(self.b_lab_g, 0, edge_label) if self.gating else None
     
@@ -42,22 +40,17 @@ class SGCNDir(MessagePassing):
         b_lab: torch.Tensor, 
         b_lab_g: torch.Tensor
         ) -> torch.Tensor:
-        # x_j has shape [E, dim_out]
+        # x_j has shape [E, dim_in]
         # b_lab has shape [E, dim_out]
-        # b_lab_g has shape [E, dim_out]
+        # b_lab_g has shape [E, 1]
 
-        print("x_j shape")
-        print(x_j.shape)
-        print("W_dir shape")
-        print(self.W_dir.shape)
-
-        x_j = torch.matmul(x_j, self.W_dir) + b_lab
+        x_out = torch.matmul(x_j, self.W_dir) + b_lab
 
         if self.gating: 
             gate = torch.sigmoid(torch.matmul(x_j, self.W_dir_g) + b_lab_g)
-            x_j = gate * x_j
+            x_out = gate * x_out
         
-        return x_j
+        return x_out
 
 class SGCNLoop(nn.Module):
     def __init__(
@@ -70,24 +63,17 @@ class SGCNLoop(nn.Module):
         self.lin = nn.Linear(dim_in, dim_out)
         self.gating = gating
         
-        # TODO: verify later
         if self.gating:
-            self.lin_g = nn.Linear(dim_out, 1)
+            self.lin_g = nn.Linear(dim_in, 1)
     
-    def forward(self, x: int) -> torch.Tensor:
-        x = self.lin(x)
-        print("x pre gating dim")
-        print(x.shape)
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x_out = self.lin(x)
 
         if self.gating:
             gate = torch.sigmoid(self.lin_g(x))
-            print("gate dim")
-            print(gate.shape)
-            x = gate * x
+            x_out = gate * x_out
         
-        print("sgcn loop dim")
-        print(x.shape)
-        return x
+        return x_out
         
 class SGCNConv(nn.Module):
     def __init__(
@@ -95,18 +81,18 @@ class SGCNConv(nn.Module):
         dim_in: int,
         dim_out: int,
         num_labels: int,
-        gating: bool
+        gating: bool,
+        directed: bool
         ):
         super().__init__()
         self.conv_loop = SGCNLoop(dim_in, dim_out, gating)
-        self.conv_in = SGCNDir(dim_in, dim_out, num_labels, gating)
-        self.conv_out = SGCNDir(dim_in, dim_out, num_labels, gating)
-
-        for name, param in self.named_parameters():
-            if 'b' in name:
-                nn.init.zeros_(param)
-            else:
-                nn.init.xavier_normal_(param)
+        self.directed = directed
+        
+        if self.directed:
+            self.conv_in = SGCNDir(dim_in, dim_out, num_labels, gating)
+            self.conv_out = SGCNDir(dim_in, dim_out, num_labels, gating)
+        else:
+            self.conv_dir = SGCNDir(dim_in, dim_out, num_labels, gating)
 
     def forward(
         self,
@@ -114,12 +100,14 @@ class SGCNConv(nn.Module):
         edge_index: torch.LongTensor,
         edge_label: torch.LongTensor
         ) -> torch.Tensor:
-        # TODO: direction
         x_loop = self.conv_loop(x)
-        print("conv_in x dim")
-        print(x.shape)
-        x_in = self.conv_in(x, edge_index, edge_label)
-        print("conv_in x_in dim")
-        print(x_in.shape)
-        x_out = self.conv_out(x, torch.flip(edge_index, (-2, )), edge_label)
-        return torch.relu(x_loop + x_in + x_out)
+
+        if self.directed:
+            x_in = self.conv_in(x, edge_index, edge_label)
+            x_out = self.conv_out(x, torch.flip(edge_index, (-2, )), edge_label)
+            return torch.relu(x_loop + x_in + x_out)
+        else:
+            edge_index = torch.cat((edge_index, torch.flip(edge_index, (-2, ))), 1)
+            edge_label = torch.cat((edge_label, edge_label))
+            x_dir = self.conv_dir(x, edge_index, edge_label)
+            return torch.relu(x_loop + x_dir)

@@ -314,6 +314,7 @@ if __name__ == "__main__":
     # cpc model config
     parser.add_argument("--sgcn_dims", nargs='+', type=int)
     parser.add_argument("--sgcn_gating", action="store_true", default=False)
+    parser.add_argument("--sgcn_directed", action="store_true", default=False)
     
     # absa model config
     parser.add_argument("--absa_lr", type=float, default=0.005)
