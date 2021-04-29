@@ -13,7 +13,7 @@ python src/preprocess.py \
     --generate_aspect_dist
 
 python src/preprocess.py \
-    --gpu_id 1 \
+    --gpu_id 2 \
     --generate_dep_graph \
     --generate_aspect_dist
 
@@ -29,7 +29,7 @@ python src/preprocess.py \
 python src/train.py \
     --experimentID 0000 \
     --task train \
-    --gpu_id 1 \
+    --gpu_id 0 \
     --use_lr_scheduler \
     --input_emb glove \
     --emb_dim 100 \

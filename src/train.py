@@ -25,6 +25,7 @@ from utils import LABELS
 from utils import ID2LABEL, ID2LABEL_ABSA
 from sklearn.metrics import f1_score
 
+from collections import Counter
 
 def get_optimizer_and_scheduler(args, task, model):
     # for CPC model, update all parameters as they are all involved.
@@ -54,9 +55,10 @@ def compose_msg(task, ep, batch_count, ttl_iter_num, loss,
     msg = f"[{task}] ep:[{ep}] iter:[{batch_count}"
     msg += f"/{ttl_iter_num}] "
     msg += f"loss:[{loss:.6f}] "
+    
     msg += "accumulate loss: CPC-[{}]; ABSA-[{}]".format(
-        ttl_cpc_loss / cpc_batch_count,
-        ttl_absa_loss / absa_batch_count
+        ttl_cpc_loss / (cpc_batch_count + 1E-6),
+        ttl_absa_loss / (absa_batch_count + 1E-6)
     )
     return msg
 
@@ -73,8 +75,8 @@ def compute_metrics(pred_list, gt_list):
     """
     computing the performance using two lists of vectors
     Args:
-        pred_list - list of numpy arrays predictions
-        gt_list - lits of numpy arrays of ground truths
+        pred_list - list of tensor on device for predictions
+        gt_list - lits of tensor on device for ground truths
     Return:
         metric_dict = 
             {
@@ -84,18 +86,19 @@ def compute_metrics(pred_list, gt_list):
                 "metric": f1(micro)
             }
     """
+    pred_list = [x.to("cpu").detach().numpy() for x in pred_list]
+    gt_list = [x.to("cpu").detach().numpy() for x in gt_list]
     y_pred = np.concatenate(pred_list)
     y_true = np.concatenate(gt_list)
-    each_class_f1 = f1_score(y_true, y_pred, lables=LABELS, average=None)
-    metric_dict = dict(zip(labels, each_class_f1))
+    each_class_f1 = f1_score(y_true, y_pred, labels=LABELS, average=None)
+    metric_dict = dict(zip(LABELS, each_class_f1))
     metric_dict["micro"] = f1_score(y_true, y_pred, average="micro")
     return metric_dict
 
 
 def compose_metric_perf_msg(metric_dict):
-    perf_msg = + " ".join(
-        [f"{ID2LABEL[i]}-{metric_dict[i]:.6f};" for i in LABELS]) \
-        + f" micro-{metric_dict['micro']}"
+    perf_msg = " ".join([f"{ID2LABEL[i]}-{metric_dict[i]:.6f};" for i in LABELS])
+    perf_msg += f" micro-{metric_dict['micro']}"
     return perf_msg
     
 
@@ -104,7 +107,7 @@ def gen_domain_target(batch):
         For CPC, generate (batch_size) zero vector
         For ABSA, generate (2*batch_size) one vector
     """
-    batch_size = len(batch['instance'])
+    batch_size = len(batch['instances'])
     if batch['task'] == CPC:
         return torch.from_numpy(np.zeros(2*batch_size))
     else:
@@ -143,6 +146,7 @@ def train(args, device, model, dataloader):
         logging.info(f"[Time] Starting Epoch {ep}")
 
         for bid, batch in enumerate(trn_iter):
+
             task = batch['task']
 
             # change it to use gpu
@@ -150,7 +154,7 @@ def train(args, device, model, dataloader):
             
             # get prediction and target
             model_out = model(batch)
-            pred = model_out['prediction']
+            pred_logits = model_out['prediction']  # logits
             target = torch.tensor(
                 [x.get_label_id() for x in batch['instances']]).to(device)
 
@@ -162,10 +166,11 @@ def train(args, device, model, dataloader):
             optim.zero_grad()
 
             # compute loss, compute derivation, optimize
-            loss = criterion(pred, target)
+            loss = criterion(pred_logits, target)
             
+            # TODO: check optimizer
             if args.dom_adapt:
-                dom_pred = model_out['domain_logit']
+                dom_pred = model_out['domain_logit'].squeeze()
                 dom_target = gen_domain_target(batch).to(device)
                 loss += dom_criterion(dom_pred, dom_target)
             loss.backward()
@@ -176,6 +181,8 @@ def train(args, device, model, dataloader):
                 cpc_batch_count += 1
                 total_cpc_loss += loss.item()
                 # collect prediction results and ground truths
+                # pred: softmax+argmax on dim 1
+                pred = torch.argmax(torch.softmax(pred_logits, 1), 1)
                 predictions.append(pred)
                 groundtruths.append(target)
 

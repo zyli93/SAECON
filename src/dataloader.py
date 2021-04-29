@@ -10,6 +10,7 @@
 
 import numpy as np
 from sklearn.model_selection import train_test_split
+import torch
 from torch.nn.utils.rnn import pad_sequence
 from torch_geometric.data import Data, Batch
 
@@ -82,7 +83,6 @@ class DataLoader():
 
         self.absa_aspdist = load_pickle(DATA_DIR+"absa_aspect_dist.pkl")
 
-        print(fine_tune)
         if not fine_tune:
             print("[DataLoader] loading data from disk ...")
             self.cpc_trn_emb = load_pickle(
@@ -109,6 +109,7 @@ class DataLoader():
     def __data_augmentation(self, fine_tune):
         id_ = len(self.cpc_trn)
         new_indices = []
+        print(type(self.cpc_trn_aspdistA))
         for idx in self.cpc_trn_indices:
             # reverse a single training instance 
             ins = self.cpc_trn[idx]
@@ -117,6 +118,8 @@ class DataLoader():
                 rev_ins = reverse_instance(ins, sample_id=id_)
                 self.cpc_trn.append(rev_ins)
                 self.cpc_trn_depg[id_] = self.cpc_trn_depg[ins_id]
+                self.cpc_trn_aspdistA[id_] = self.cpc_trn_aspdistA[ins_id]
+                self.cpc_trn_aspdistB[id_] = self.cpc_trn_aspdistB[ins_id]
                 if not fine_tune:
                     self.cpc_trn_emb[id_] = self.cpc_trn_emb[ins_id]
                 new_indices.append(id_)
@@ -153,24 +156,24 @@ class DataLoader():
                 depg = [self.cpc_tst_depg[x] for x in indices]
                 aspdistA = [self.cpc_tst_aspdistA[x] for x in indices]
                 aspdistB = [self.cpc_tst_aspdistB[x] for x in indices]
+
+            # batch dependency graph
+            depg_list = [
+                Data(
+                    x=emb_i, 
+                    edge_index=depg_i['edge_index'], 
+                    edge_attr=depg_i['edge_label']
+                )
+                for emb_i, depg_i in zip(emb, depg)
+            ]
+            depg = Batch.from_data_list(depg_list)
         else:
             instances = [self.absa[x] for x in indices]
             emb = [self.absa_emb[x] for x in indices]
-            depg = None
+            depg = torch.zeros(0)  # aka an empty tensor
             aspdistA = [self.absa_aspdist[x] for x in indices]
             aspdistB = None
 
-        # batch dependency graph
-        depg_list = [
-            Data(
-                x=emb_i, 
-                edge_index=depg_i['edge_index'], 
-                edge_attr=depg_i['edge_label']
-            )
-            for emb_i, depg_i in zip(emb, depg)
-        ]
-        depg = Batch.from_data_list(depg_list)
-        
         emb = pad_sequence(emb, batch_first=True)
 
         return {

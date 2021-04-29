@@ -32,7 +32,7 @@ class SaeccModel(nn.Module):
         super().__init__()
         self.use_dom_inv = args.dom_adapt  # whether to use domain invariant
         self.device = device
-        self.cpc_pipeline = CpcPipeline(args)
+        self.cpc_pipeline = CpcPipeline(args, device)
         self.absa_pipeline = LCFS_BERT(args, device)
 
         # cpc_pipeline.output_dim = `feature_dim` for word + `feature_dim` for node
@@ -107,17 +107,16 @@ class SaeccModel(nn.Module):
 
 
 class CpcPipeline(nn.Module):
-    def __init__(self, args):
+    def __init__(self, args, device):
         super().__init__()
-        print("args.sgcn_dims")
-        print(args.sgcn_dims)
         """
         #   emb_dim -> sgcn_dim0, 
         #   sgcn_dim0 -> sgcn_dim1 -> ... -> sgcn_dim[-1]
         #   sgcn_dim[-1] -> feature_dim
         """
+        self.device = device
         # global context
-        sgcn_dims = [args.emb_dim] + args.sgcn_dims + [args.feature_dim]
+        sgcn_dims = [args.emb_dim]+ args.sgcn_dims + [args.feature_dim]
 
         # TODO: from children printout: params not properly registered
         # self.sgcn_convs = [
@@ -185,17 +184,17 @@ class CpcPipeline(nn.Module):
         nodeA, nodeB, wordA, wordB = self._extract_entities(batch, node_hidden, word_hidden)
 
         return {
-            'nodeA': torch.cat(nodeA),
-            'nodeB': torch.cat(nodeB),
-            'wordA': torch.cat(wordA),
-            'wordB': torch.cat(wordB)
+            'nodeA': torch.vstack(nodeA),
+            'nodeB': torch.vstack(nodeB),
+            'wordA': torch.vstack(wordA),
+            'wordB': torch.vstack(wordB)
         }
 
     def _extract_entities(self, batch, node_hidden, word_hidden):
         # extract entities
         instances = batch['instances']
-        entA_pos = [torch.tensor(ins.entityA_pos) for ins in instances]
-        entB_pos = [torch.tensor(ins.entityB_pos) for ins in instances]
+        entA_pos = [torch.tensor(ins.entityA_pos).to(self.device) for ins in instances]
+        entB_pos = [torch.tensor(ins.entityB_pos).to(self.device) for ins in instances]
 
         nodeA, nodeB = [], []
         for seq, posA, posB in zip(node_hidden, entA_pos, entB_pos):

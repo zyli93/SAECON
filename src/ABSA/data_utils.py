@@ -43,13 +43,14 @@ def pad_or_truncate_tensorlist(tensor_list, length):
         padded = torch.cat([padded, tensor_to_pad], axis=1)
     return padded
 
-def pad_to_fixedlength(tensor, length):
-    """pad or truncate a list of tensors"""
+def pad_to_fixedlength(padded, length, device):
+    """pad or truncate a already padded tensor"""
     if padded.shape[1] > length:
         padded = padded[:, :length]
     elif padded.shape[1] < length:
         pad_len = length - padded.shape[1]
-        tensor_to_pad = torch.zeros(padded.shape[0], pad_len)
+        tensor_to_pad = torch.zeros(
+            padded.shape[0], pad_len, padded.shape[2]).to(device)
         padded = torch.cat([padded, tensor_to_pad], axis=1)
     return padded
 

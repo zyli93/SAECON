@@ -137,5 +137,6 @@ authors
 data/glove
 data/old
 data/*.pkl
+data/*.bkup
 related_works
 core

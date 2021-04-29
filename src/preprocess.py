@@ -268,7 +268,7 @@ def preprocess_aspect_dist(instance_features, depgraphs, entity):
     assert len(instance_features) == len(depgraphs)
     n_instances = len(instance_features)
     
-    dists = [] 
+    all_dists = {}
     for i in tqdm(range(n_instances)):
         ins = instance_features[i]
         depg = depgraphs[i]
@@ -282,27 +282,18 @@ def preprocess_aspect_dist(instance_features, depgraphs, entity):
         graph = nx.Graph(edges)
 
         dist = []
-        for i in range(n_pretokens):
+        for j in range(n_pretokens):
             sum_ = 0
-            # if not aspect_pos:
-            #     print(n_pretokens)
-            #     print(edges)
-            #     print(ins.get_entities())
-            #     print(ins.entityA_pos)
-            #     print(ins.sentence_raw)
-            #     print(ins.sentence)
-            #     print(ins.sample_id)
             for pos in aspect_pos:
                 try:
-                    sum_ += nx.shortest_path_length(graph, source=i, target=pos)
+                    sum_ += nx.shortest_path_length(graph, source=j, target=pos)
                 except:
                     sum_ += n_pretokens # No connection between source and target
             dist.append(sum_ / len(aspect_pos))
 
-        dists.append(dist)
+        all_dists[i] = dist
     
-    # print(f"# of no aspect pos {no_aspect_pos}")
-    return dists
+    return all_dists
 
 
 if __name__ == "__main__":
