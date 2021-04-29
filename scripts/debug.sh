@@ -26,6 +26,7 @@ python src/preprocess.py \
 
 # NOTE:
 #   1. change input_emb and emb_dim simultaneously!
+#   2. feature_dim: 60, 72, 84, ...
 python src/train.py \
     --experimentID 0000 \
     --task train \
@@ -35,6 +36,7 @@ python src/train.py \
     --emb_dim 100 \
     --feature_dim 120 \
     --lr 0.0001 \
+    --absa_lr 0.0001 \
     --reg_weight 0.00001 \
     --dropout 0.1 \
     --num_ep 3 \
@@ -46,4 +48,6 @@ python src/train.py \
     --eval_after_epnum 1 \
     --sgcn_dims 128 \
     --sgcn_gating \
-    --sgcn_directed
+    --sgcn_directed \
+    --log_batch_num 20 \
+    --asba_batch_num 20

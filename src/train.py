@@ -173,6 +173,7 @@ def train(args, device, model, dataloader):
                 dom_pred = model_out['domain_logit'].squeeze()
                 dom_target = gen_domain_target(batch).to(device)
                 loss += dom_criterion(dom_pred, dom_target)
+                # TODO: do we need a hyperparam here
             loss.backward()
             optim.step()
 
@@ -186,7 +187,7 @@ def train(args, device, model, dataloader):
                 predictions.append(pred)
                 groundtruths.append(target)
 
-                if cpc_batch_count % args.log_batch_num:
+                if not cpc_batch_count % args.log_batch_num:
                     msg = compose_msg(CPC, ep, cpc_batch_count, 
                         total_iter_num_per_epoch, loss.item(), 
                         total_cpc_loss, cpc_batch_count,
@@ -194,7 +195,7 @@ def train(args, device, model, dataloader):
             else:
                 absa_batch_count += 1
                 total_absa_loss += loss.item()
-                if absa_batch_count % args.absa_log_batch_num:
+                if not absa_batch_count % args.absa_log_batch_num:
                     msg = compose_msg(ABSA, ep, cpc_batch_count, 
                         total_iter_num_per_epoch, loss.item(), 
                         total_cpc_loss, cpc_batch_count,
@@ -304,7 +305,6 @@ if __name__ == "__main__":
         help="Embedding dimension of Bert or Glove embedding")
     parser.add_argument("--glove_dim", type=int, default=100)
     parser.add_argument("--feature_dim", type=int, default=100) 
-    # TODO: fix dimension of sgcn_dims and feature_dim
 
     # training config
     parser.add_argument("--lr", type=float, default=0.005)

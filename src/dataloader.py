@@ -109,7 +109,6 @@ class DataLoader():
     def __data_augmentation(self, fine_tune):
         id_ = len(self.cpc_trn)
         new_indices = []
-        print(type(self.cpc_trn_aspdistA))
         for idx in self.cpc_trn_indices:
             # reverse a single training instance 
             ins = self.cpc_trn[idx]

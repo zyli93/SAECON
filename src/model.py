@@ -6,11 +6,6 @@
 
     Date created: March 11, 2020
     Python version: 3.6.0
-
-    # TODO: feature dim should be divisible by 12
-    # TODO: how to handle entity phrases?
-    # TODO: add directed as an option
-
 """
 import math
 from collections import OrderedDict
@@ -58,7 +53,6 @@ class SaeccModel(nn.Module):
         self._reset_params()
 
     def forward(self, batch):
-        # TODO: check on the dimensions
 
         # CPC. cpc_pipeline outputs a dict of `nodeA`, `nodeB`, `wordA`, and `wordB`
         if batch['task'] == CPC:
@@ -66,7 +60,6 @@ class SaeccModel(nn.Module):
             hidden_absa_entA, _ = self.absa_pipeline(batch)
             hidden_absa_entB, _ = self.absa_pipeline(batch, switch=True)
 
-            # TODO: make sure all (batch_size, feature_dim)
             # After cat: (batch_size, 3*feature_dim)
             hidden_entA = torch.cat(
                 [hidden_cpc['nodeA'], hidden_cpc['wordA'], hidden_absa_entA], 1)
@@ -94,7 +87,7 @@ class SaeccModel(nn.Module):
     def _reset_params(self):
         initializer = torch.nn.init.xavier_normal_
         for child in self.children():
-            print(child)
+            # print(child)
             if type(child) == BertModel:  # skip bert params
                 continue
             for p in child.parameters():
