@@ -27,6 +27,7 @@ python src/preprocess.py \
 # NOTE:
 #   1. change input_emb and emb_dim simultaneously!
 #   2. feature_dim: 60, 72, 84, ...
+#   3. num of optimizer
 python src/train.py \
     --experimentID 0000 \
     --task train \

@@ -25,8 +25,6 @@ from utils import LABELS
 from utils import ID2LABEL, ID2LABEL_ABSA
 from sklearn.metrics import f1_score
 
-from collections import Counter
-
 def get_optimizer_and_scheduler(args, task, model):
     # for CPC model, update all parameters as they are all involved.
     # for ABSA model, update only absa pipeline.
@@ -83,7 +81,7 @@ def compute_metrics(pred_list, gt_list):
                 0: f1(cls 0),
                 1: f1(cls 1),
                 2: f1(cls 2),
-                "metric": f1(micro)
+                "micro": f1(micro)
             }
     """
     pred_list = [x.to("cpu").detach().numpy() for x in pred_list]
