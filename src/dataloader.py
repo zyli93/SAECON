@@ -206,6 +206,7 @@ class DataLoader():
 
     
     def get_batch_train(self):
+        np.random.shuffle(self.cpc_trn_indices)
         bs = self.batch_size
         for ptr in range(self.trn_batch_num):
             end = min((ptr+1)*bs, len(self.cpc_trn_indices))
