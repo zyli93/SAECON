@@ -140,3 +140,5 @@ data/*.pkl
 data/*.bkup
 related_works
 core
+
+wandb

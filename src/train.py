@@ -7,6 +7,7 @@
     Python version: 3.6.0+
 """
 
+import pdb
 import argparse
 import logging
 import numpy as np
@@ -24,6 +25,8 @@ from utils import LOG_DIR, DATA_DIR, CKPT_DIR
 from utils import LABELS
 from utils import ID2LABEL, ID2LABEL_ABSA
 from sklearn.metrics import f1_score
+
+import wandb
 
 def get_optimizer_and_scheduler(args, task, model):
     # for CPC model, update all parameters as they are all involved.
@@ -164,13 +167,15 @@ def train(args, device, model, dataloader):
             optim.zero_grad()
 
             # compute loss, compute derivation, optimize
-            loss = criterion(pred_logits, target)
+            loss = task_loss = criterion(pred_logits, target)
             
             # TODO: check optimizer
+            dom_loss = None
             if args.dom_adapt:
                 dom_pred = model_out['domain_logit'].squeeze()
                 dom_target = gen_domain_target(batch).to(device)
-                loss += dom_criterion(dom_pred, dom_target)
+                dom_loss = dom_criterion(dom_pred, dom_target)
+                loss = task_loss + dom_loss
                 # TODO: do we need a hyperparam here
             loss.backward()
             optim.step()
@@ -190,6 +195,16 @@ def train(args, device, model, dataloader):
                         total_iter_num_per_epoch, loss.item(), 
                         total_cpc_loss, cpc_batch_count,
                         total_absa_loss, absa_batch_count)
+
+                    wandb.log({
+                        "cpc_loss": task_loss.item(),
+                        "dom_loss": dom_loss.item() if dom_loss else 0,
+                        "accumulated_cpc_loss": total_cpc_loss / (cpc_batch_count + 1E-6),
+                        "accumulated_absa_loss": total_absa_loss / (absa_batch_count + 1E-6),
+                    })
+
+                    logging.info("[Perf][Iter] " + msg)
+                    print(f"{get_time()} [Perf][Iter] {msg}")
             else:
                 absa_batch_count += 1
                 total_absa_loss += loss.item()
@@ -198,9 +213,16 @@ def train(args, device, model, dataloader):
                         total_iter_num_per_epoch, loss.item(), 
                         total_cpc_loss, cpc_batch_count,
                         total_absa_loss, absa_batch_count)
+
+                    wandb.log({
+                        "absa_loss": task_loss.item(),
+                        "dom_loss": dom_loss.item() if dom_loss else 0,
+                        "accumulated_cpc_loss": total_cpc_loss / (cpc_batch_count + 1E-6),
+                        "accumulated_absa_loss": total_absa_loss / (absa_batch_count + 1E-6)
+                    })
             
-            logging.info("[Perf][Iter] " + msg)
-            print(f"{get_time()} [Perf][Iter] {msg}")
+                    logging.info("[Perf][Iter] " + msg)
+                    print(f"{get_time()} [Perf][Iter] {msg}")
 
             
         # log training loss after each epoch
@@ -212,6 +234,7 @@ def train(args, device, model, dataloader):
         # compute and log training performance after each epoch
         metric_dict = compute_metrics(predictions, groundtruths)
         perf_msg = compose_metric_perf_msg(metric_dict)
+        wandb.log({'train F1-' + str(k): v for k, v in metric_dict.items()})
         logging.info(f"[Perf][Train][CPC][Epoch]{ep} " + perf_msg)
         print(f"{get_time()} [Perf][Train][CPC][Epoch]{ep} " + perf_msg)
 
@@ -222,10 +245,11 @@ def train(args, device, model, dataloader):
                 absa_sched.step()
 
         # run validation
-        if ep % args.eval_per_ep and ep >= args.eval_after_epnum - 1:
-            perf_msg = evaluate(model, for_test=False,
-                dataloader=dataloader.get_batch_testval(False), 
-                restore_model_path=None)
+        if not ep % args.eval_per_ep and ep >= args.eval_after_epnum - 1:
+            metric_dict, perf_msg = evaluate(model, for_test=False,
+                data_iter=dataloader.get_batch_testval(False), 
+                restore_model_path=None, device=device)
+            wandb.log({'eval F1-' + str(k): v for k, v in metric_dict.items()})
             logging.info(f"[Perf-CPC][val][epoch]{ep} {perf_msg}")
             print(f"{get_time()} [Perf-CPC][val][epoch]{ep} {msg}")
 
@@ -260,10 +284,10 @@ def evaluate(model, data_iter, restore_model_path, device, for_test):
         model.load_state_dict(torch.load(restore_model_path))
 
     with torch.no_grad():
-        for i, eval_batch in enumerate(data_iter):
+        for i, batch in enumerate(data_iter):
             batch = move_batch_to_device(batch, device)
             eval_pred = model(batch)
-            eval_pred = eval_pred['predictions'].to("cpu")
+            eval_pred = eval_pred['prediction'].to("cpu")
             eval_groundtruth = np.array(
                 [x.get_label_id() for x in batch['instances']])
             # eval_pred = eval_pred.cpu()
@@ -276,13 +300,19 @@ def evaluate(model, data_iter, restore_model_path, device, for_test):
         # compose a message for performance
         perf_msg = compose_metric_perf_msg(metric_dict)
     
-    return perf_msg
+    return metric_dict, perf_msg
+
+def setup_wandb(args):
+    wandb.init(project='saecc', entity='louixp')
+    wandb.config.update(args)
+    args.experimentID = wandb.run.name
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     # environment config
-    parser.add_argument("--experimentID", type=str, required=True, help="The ID of the experiments")
+    parser.add_argument("--use_wandb", action="store_true", default=False)
+    parser.add_argument("--experimentID", type=str, help="The ID of the experiments")
     parser.add_argument("--task", type=str, required=True, help="train/test?")
     parser.add_argument("--gpu_id", type=int, required=True)
     parser.add_argument("--random_seed", type=int, default=2021)
@@ -362,6 +392,9 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    if args.use_wandb:
+        setup_wandb(args)
+
     # make directories
     make_dir(LOG_DIR)
     make_dir(CKPT_DIR)
@@ -403,7 +436,7 @@ if __name__ == "__main__":
     if args.task == "train":
         train(args, device, model, dataloader)
     elif args.task == "test":
-        perf_msg = evaluate(model, 
+        _, perf_msg = evaluate(model, 
             dataloader=dataloader.get_batch_testval(for_test=True),
             restore_model_path=args.load_model_path, 
             devic=device, for_test=True)
