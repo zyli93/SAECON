@@ -287,12 +287,13 @@ def evaluate(model, data_iter, restore_model_path, device, for_test):
         for i, batch in enumerate(data_iter):
             batch = move_batch_to_device(batch, device)
             eval_pred = model(batch)
-            eval_pred = eval_pred['prediction'].to("cpu")
-            eval_groundtruth = np.array(
+            eval_logits = eval_pred['prediction']
+            eval_pred = torch.argmax(torch.softmax(eval_logits, 1), 1)
+            eval_groundtruth = torch.tensor(
                 [x.get_label_id() for x in batch['instances']])
             # eval_pred = eval_pred.cpu()
             # eval_groundtruth = eval_groundtruth.cpu()
-            predictions.append(eval_pred.detach().numpy())
+            predictions.append(eval_pred)
             groundtruths.append(eval_groundtruth)
 
         # compute metric performance

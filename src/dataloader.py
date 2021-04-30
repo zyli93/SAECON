@@ -225,8 +225,9 @@ class DataLoader():
         """get data iterator for test and validation"""
         bs = self.batch_size
         data_indices = self.cpc_tst_indices if for_test else self.cpc_val_indices
+        batch_num = self.tst_batch_num if for_test else self.val_batch_num
         split = "test" if for_test else "val"
-        for ptr in range(self.tst_batch_num):
+        for ptr in range(batch_num):
             end = min((ptr+1)*bs, len(data_indices))
             indices = data_indices[ptr*bs: end]
             yield self.__fetch_batch(CPC, split, indices)
