@@ -7,6 +7,7 @@
     Python version: 3.6.0+
 """
 
+import os
 import pdb
 import argparse
 import logging
@@ -196,12 +197,13 @@ def train(args, device, model, dataloader):
                         total_cpc_loss, cpc_batch_count,
                         total_absa_loss, absa_batch_count)
 
-                    wandb.log({
-                        "cpc_loss": task_loss.item(),
-                        "dom_loss": dom_loss.item() if dom_loss else 0,
-                        "accumulated_cpc_loss": total_cpc_loss / (cpc_batch_count + 1E-6),
-                        "accumulated_absa_loss": total_absa_loss / (absa_batch_count + 1E-6),
-                    })
+                    if args.use_wandb:
+                        wandb.log({
+                            "cpc_loss": task_loss.item(),
+                            "dom_loss": dom_loss.item() if dom_loss else 0,
+                            "accumulated_cpc_loss": total_cpc_loss / (cpc_batch_count + 1E-6),
+                            "accumulated_absa_loss": total_absa_loss / (absa_batch_count + 1E-6),
+                        })
 
                     logging.info("[Perf][Iter] " + msg)
                     print(f"{get_time()} [Perf][Iter] {msg}")
@@ -213,13 +215,14 @@ def train(args, device, model, dataloader):
                         total_iter_num_per_epoch, loss.item(), 
                         total_cpc_loss, cpc_batch_count,
                         total_absa_loss, absa_batch_count)
-
-                    wandb.log({
-                        "absa_loss": task_loss.item(),
-                        "dom_loss": dom_loss.item() if dom_loss else 0,
-                        "accumulated_cpc_loss": total_cpc_loss / (cpc_batch_count + 1E-6),
-                        "accumulated_absa_loss": total_absa_loss / (absa_batch_count + 1E-6)
-                    })
+                    
+                    if args.use_wandb:
+                        wandb.log({
+                            "absa_loss": task_loss.item(),
+                            "dom_loss": dom_loss.item() if dom_loss else 0,
+                            "accumulated_cpc_loss": total_cpc_loss / (cpc_batch_count + 1E-6),
+                            "accumulated_absa_loss": total_absa_loss / (absa_batch_count + 1E-6)
+                        })
             
                     logging.info("[Perf][Iter] " + msg)
                     print(f"{get_time()} [Perf][Iter] {msg}")
@@ -234,7 +237,8 @@ def train(args, device, model, dataloader):
         # compute and log training performance after each epoch
         metric_dict = compute_metrics(predictions, groundtruths)
         perf_msg = compose_metric_perf_msg(metric_dict)
-        wandb.log({'train F1-' + str(k): v for k, v in metric_dict.items()})
+        if args.use_wandb:
+            wandb.log({'train F1-' + str(k): v for k, v in metric_dict.items()})
         logging.info(f"[Perf][Train][CPC][Epoch]{ep} " + perf_msg)
         print(f"{get_time()} [Perf][Train][CPC][Epoch]{ep} " + perf_msg)
 
@@ -249,7 +253,8 @@ def train(args, device, model, dataloader):
             metric_dict, perf_msg = evaluate(model, for_test=False,
                 data_iter=dataloader.get_batch_testval(False), 
                 restore_model_path=None, device=device)
-            wandb.log({'eval F1-' + str(k): v for k, v in metric_dict.items()})
+            if args.use_wandb:
+                wandb.log({'eval F1-' + str(k): v for k, v in metric_dict.items()})
             logging.info(f"[Perf-CPC][val][epoch]{ep} {perf_msg}")
             print(f"{get_time()} [Perf-CPC][val][epoch]{ep} {msg}")
 
@@ -395,6 +400,16 @@ if __name__ == "__main__":
 
     if args.use_wandb:
         setup_wandb(args)
+
+    # hacking feature_dim 
+    # override gpu_id 
+    # https://discuss.pytorch.org/t/it-there-anyway-to-let-program-select-free-gpu-automatically/17560/5
+    def get_freer_gpu():
+        os.system('nvidia-smi -q -d Memory |grep -A4 GPU|grep Free >tmp')
+        memory_available = [int(x.split()[2]) for x in open('tmp', 'r').readlines()]
+        return np.argmax(memory_available)
+
+    args.gpu_id = get_freer_gpu()
 
     # make directories
     make_dir(LOG_DIR)
