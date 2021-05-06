@@ -105,14 +105,16 @@ class DataLoader():
         self.tst_batch_num = self.__get_batch_num(len(self.cpc_tst_indices), self.batch_size)
         self.val_batch_num = self.__get_batch_num(len(self.cpc_val_indices), self.batch_size)
 
+    def __data_permutation(self):
+        pass
     
-    def __data_augmentation(self, fine_tune):
+    def __data_augmentation(self, fine_tune, full_aug=False):
         id_ = len(self.cpc_trn)
         new_indices = []
         for idx in self.cpc_trn_indices:
             # reverse a single training instance 
             ins = self.cpc_trn[idx]
-            if ins.get_label() != "NONE":
+            if full_aug or ins.get_label() != "NONE":
                 ins_id = ins.get_sample_id()
                 rev_ins = reverse_instance(ins, sample_id=id_)
                 self.cpc_trn.append(rev_ins)
