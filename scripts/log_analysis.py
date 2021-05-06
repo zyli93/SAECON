@@ -1,6 +1,13 @@
 import glob
 from tqdm import tqdm
 
+BASELINE = {
+    "BETTER": 0.7821,
+    "WORSE": 0.5872,
+    "NONE": 0.9298,
+    "micro": 0.8743
+}
+
 class Run:
     def __init__(
         self, 
@@ -20,6 +27,11 @@ class Run:
         self.val_F1_worse_best = max(self.val_F1_worse) if self.val_F1_worse else -1
         self.val_F1_none_best = max(self.val_F1_none) if self.val_F1_none else -1
         self.val_F1_micro_best = max(self.val_F1_micro) if self.val_F1_micro else -1
+
+        self.performant = self.val_F1_better_best > BASELINE["BETTER"] and \
+            self.val_F1_worse_best > BASELINE["WORSE"] and \
+            self.val_F1_none_best > BASELINE["NONE"] and \
+            self.val_F1_micro_best > BASELINE["micro"]
 
     @classmethod
     def from_file(cls, file_path):
@@ -49,3 +61,13 @@ if __name__ == "__main__":
     runs = []
     for file_path in tqdm(glob.glob("log/*.log")):
         runs.append(Run.from_file(file_path))
+    
+    f1_better_best, f1_better_best_i = max((r.val_F1_better_best, i) for i, r in enumerate(runs))
+    f1_worse_best, f1_worse_best_i = max((r.val_F1_worse_best, i) for i, r in enumerate(runs))
+    f1_none_best, f1_none_best_i = max((r.val_F1_none_best, i) for i, r in enumerate(runs))
+    f1_micro_best, f1_micro_best_i = max((r.val_F1_micro_best, i) for i, r in enumerate(runs))
+
+    print("best F1 BETTER: ", f1_better_best, runs[f1_better_best_i].name)
+    print("best F1 WORSE: ", f1_worse_best, runs[f1_better_best_i].name)
+    print("best F1 NONE: ", f1_none_best, runs[f1_none_best_i].name)
+    print("best F1 micro: ", f1_micro_best, runs[f1_micro_best_i].name)
