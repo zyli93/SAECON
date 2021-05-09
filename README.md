@@ -7,6 +7,11 @@ Use Saecc as the temporal name, will change it later.
 - [ ] entityA_pos is the position of pretokens, does it matter?
 - [ ] `dist` created by tokens or pretokens? ==> by tokens
 
+## Create docker
+```
+nvidia-docker run -it --rm -v /local2/zyli/SAECC:/workspace/SAECC -v /home/zyli/nltk_data:/workspace/nltk_data nvcr.io/nvidia/pytorch:20.03-py3
+```
+
 ## Prerequisite
 
 To run preprocess for Saecc, we need to get ready for a few things: datasets,  Python packages, nltk corpora dependencies, pre-trained bert model, and glove pre-trained word vectors. 
@@ -37,6 +42,7 @@ pip install torch-geometric
 ```
 
 ```
+# 20.03-py3
 pip install torch-scatter -f https://pytorch-geometric.com/whl/torch-1.8.1+cu102.html
 pip install torch-sparse -f https://pytorch-geometric.com/whl/torch-1.8.1+cu102.html
 pip install torch-cluster -f https://pytorch-geometric.com/whl/torch-1.8.1+cu102.html

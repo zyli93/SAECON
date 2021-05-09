@@ -1,26 +1,26 @@
-# Example of preprocess
-python src/preprocess.py \
-    --gpu_id 1 \
-    --process_cpc_instances \
-    --process_absa_instances \
-    --generate_bert_emb \
-    --generate_glove_emb \
-    --generate_dep_graph \
-    --generate_aspect_dist
+# # Example of preprocess
+# python src/preprocess.py \
+#     --gpu_id 1 \
+#     --process_cpc_instances \
+#     --process_absa_instances \
+#     --generate_bert_emb \
+#     --generate_glove_emb \
+#     --generate_dep_graph \
+#     --generate_aspect_dist
 
-python src/preprocess.py \
-    --gpu_id 1 \
-    --generate_aspect_dist
+# python src/preprocess.py \
+#     --gpu_id 1 \
+#     --generate_aspect_dist
 
-python src/preprocess.py \
-    --gpu_id 2 \
-    --generate_dep_graph \
-    --generate_aspect_dist
+# python src/preprocess.py \
+#     --gpu_id 2 \
+#     --generate_dep_graph \
+#     --generate_aspect_dist
 
 
-python src/preprocess.py \
-    --gpu_id 1 \
-    --process_cpc_instances
+# python src/preprocess.py \
+#     --gpu_id 1 \
+#     --process_cpc_instances
 
 # example training and validation
 
@@ -33,22 +33,22 @@ python src/train.py \
     --task train \
     --gpu_id 0 \
     --use_lr_scheduler \
-    --input_emb glove \
-    --emb_dim 100 \
-    --feature_dim 120 \
+    --input_emb fix \
+    --emb_dim 768 \
+    --feature_dim 72 \
     --lr 0.0001 \
-    --absa_lr 0.0001 \
+    --absa_lr 0.0002\
     --reg_weight 0.00001 \
     --dropout 0.1 \
     --num_ep 3 \
     --batch_size 16 \
-    --batch_ratio 1:1 \
-    --data_augmentation \
+    --batch_ratio 1:10 \
     --dom_adapt \
     --eval_per_ep 1 \
     --eval_after_epnum 1 \
-    --sgcn_dims 128 \
+    --sgcn_dims 256 \
     --sgcn_gating \
     --sgcn_directed \
-    --log_batch_num 20 \
-    --asba_batch_num 20
+    --log_batch_num 1 \
+    --absa_log_batch_num 1 
+    # --data_augmentation \
