@@ -153,11 +153,11 @@ class LCFS_BERT(nn.Module):
         self_attention_out = self.bert_sa(mean_pool)
         pooled_out = self.bert_pooler(self_attention_out)
         prediction = self.readout(pooled_out)
-        print("a")
-        print(prediction.size())
-        print(torch.argmax(torch.softmax(prediction, 1), 1))
-        return pooled_out, prediction
-    
+        #print(torch.argmax(torch.softmax(prediction, 1), 1))
+        
+        #return pooled_out, prediction
+        return pooled_out, torch.argmax(torch.softmax(prediction, 1), 1)
+
     def convert_batch_to_absa_batch(self, original_batch, switch):
         """Convert original batch to absa batch. In detail, we need to prepare
         a few things: embedding, depdency-based distance to aspect term, bert tokenizations.
