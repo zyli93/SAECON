@@ -329,6 +329,24 @@ def evaluate(model, data_iter, restore_model_path, device, for_test):
     
     return metric_dict, perf_msg, ents, groundtruthlist, rawsentence
 
+def check_groundtruth_with_entity_sentiment(gt, sent):
+    if gt == "NONE" and sent[0] == sent[1]:
+        return True
+    elif gt == "WORSE":
+        if sent[0] == "NEG":
+            if sent[1] == "NEU" or sent[1] == "POS":
+                return True
+        elif sent[0] == "NEU":
+            if sent[1] == "POS":
+                return True
+    elif gt == "BETTER":
+        if sent[0] == "NEU" and sent[1] == "NEG":
+            return True
+        elif sent[0] == "POS":
+            if sent[1] == "NEU" or sent[1] == "NEG":
+                return True
+    return False
+
 def setup_wandb(args):
     wandb.init(project='saecc', entity='louixp')
     wandb.config.update(args)
@@ -483,13 +501,28 @@ if __name__ == "__main__":
             device=device, for_test=True)
         logging.info(f"[Perf-CPC][Test] {perf_msg}")
         print(f"{get_time()} [Perf-CPC][Test] {perf_msg}")
-        num_affirm, num_deny = 0, 0    
-        for i, each in enumerate(rawsent):
-            if gt[i] == "NONE" and eval_ent[i][0] == eval_ent[i][1]:
-                num_affirm += 1
-            elif gt[i] == "BETTER" and 
-            print("{}, Ground Truth: {}, (EntityA, EntityB): {}".format(each, gt[i], eval_ent[i]))
 
+        num_affirm, num_deny = 0, 0
+        affirm_list, deny_list = [], []
+
+        for i, each in enumerate(rawsent):
+            if check_groundtruth_with_entity_sentiment(gt[i], eval_ent[i]):
+                num_affirm += 1
+                affirm_list.append("{}, Ground Truth: {}, (EntityA, EntityB): {}".format(each, gt[i], eval_ent[i]))
+            else:
+                num_deny += 1
+                deny_list.append("{}, Ground Truth: {}, (EntityA, EntityB): {}".format(each, gt[i], eval_ent[i]))
+
+        print("{} sentences in which entity sentiments agree with cpc ground truth.".format(num_affirm))
+        print("{} sentences in which they don't agree.".format(num_deny))
+
+        with open("./good_absa.txt", "w") as f:
+            for each in affirm_list:
+                f.write(each)
+
+        with open("./bad_absa.txt", "w") as f:
+            for each in deny_list:
+                f.write(each)
 
     else:
         raise ValueError("args.task can only be train or test")
