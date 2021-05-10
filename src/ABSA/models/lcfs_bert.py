@@ -153,6 +153,9 @@ class LCFS_BERT(nn.Module):
         self_attention_out = self.bert_sa(mean_pool)
         pooled_out = self.bert_pooler(self_attention_out)
         prediction = self.readout(pooled_out)
+        print("a")
+        print(prediction.size())
+        print(torch.argmax(torch.softmax(prediction, 1), 1))
         return pooled_out, prediction
     
     def convert_batch_to_absa_batch(self, original_batch, switch):

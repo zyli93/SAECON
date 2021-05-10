@@ -274,8 +274,7 @@ def train(args, device, model, dataloader):
             print(f"{get_time()} [Perf-CPC][Test] {perf_msg}")
 
         # save model
-        if args.save_model and not ep % args.save_per_ep \
-            and ep >= args.save_after_epnum - 1:
+        if args.save_model:
             model_name = "model_expID{}_ep{}".format(args.experimentID, ep)
             torch.save(model.state_dict(), args.save_model_path+model_name)
             logging.info(f"[save] saving model: {model_name}")
@@ -303,15 +302,25 @@ def evaluate(model, data_iter, restore_model_path, device, for_test):
         print(f"[Eval] loading model from {restore_model_path}")
         model.load_state_dict(torch.load(restore_model_path))
 
+<<<<<<< HEAD
     all_entA = all_entB = []
+=======
+    entityA = entityB = []
+>>>>>>> b62679a... debug
     with torch.no_grad():
         for i, batch in enumerate(data_iter):
             batch = move_batch_to_device(batch, device)
             eval_pred = model(batch)
             eval_logits = eval_pred['prediction']
+<<<<<<< HEAD
             print(len(eval_pred))
             # eval_entA = eval_pred['entityA']
             # eval_entB = eval_pred['entityB']
+=======
+            if for_test:
+                entityA.append(eval_pred['entityA'])
+                entityB.append(eval_pred['entityB'])
+>>>>>>> b62679a... debug
             eval_pred = torch.argmax(torch.softmax(eval_logits, 1), 1)
             eval_groundtruth = torch.tensor(
                 [x.get_label_id() for x in batch['instances']])
@@ -328,7 +337,7 @@ def evaluate(model, data_iter, restore_model_path, device, for_test):
         # compose a message for performance
         perf_msg = compose_metric_perf_msg(metric_dict)
     
-    return metric_dict, perf_msg
+    return metric_dict, perf_msg, entityA, entityB
 
 def setup_wandb(args):
     wandb.init(project='saecc', entity='louixp')
@@ -478,13 +487,27 @@ if __name__ == "__main__":
     if args.task == "train":
         train(args, device, model, dataloader)
     elif args.task == "test":
+<<<<<<< HEAD
         _, perf_msg, all_entA, all_entB = evaluate(model,
+=======
+        _, perf_msg, entityA, entityB = evaluate(model, 
+>>>>>>> b62679a... debug
             data_iter=dataloader.get_batch_testval(for_test=True),
             restore_model_path=args.load_model_path, 
             device=device, for_test=True)
         logging.info(f"[Perf-CPC][Test] {perf_msg}")
         print(f"{get_time()} [Perf-CPC][Test] {perf_msg}")
+<<<<<<< HEAD
         print(all_entA[0])
         print(all_entB[0])
+=======
+        print("Shape:")
+        print(str(len(entityA)) + " " + str(len(entityB)))
+        print(str(len(entityA[0])) + " " + str(len(entityB[0])))
+        print("Sample:")
+        print(str(entityA[0]) + " " + str(entityB[0]))
+        print("0 1")
+        print(str(entityA[0][1]) + " " + str(entityB[0][1]))
+>>>>>>> b62679a... debug
     else:
         raise ValueError("args.task can only be train or test")

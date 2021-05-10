@@ -340,16 +340,16 @@ if __name__ == "__main__":
     # process or load CPC data
     if args.process_cpc_instances:
         print("[preprocess] processing cpc data ...")
-        cpc_trn_data = preprocess_cpc(DATA_DIR + "data.csv", bert_tkn, pre_tkn)
+        #cpc_trn_data = preprocess_cpc(DATA_DIR + "data.csv", bert_tkn, pre_tkn)
         cpc_tst_data = preprocess_cpc(DATA_DIR + "held-out-data.csv", bert_tkn, pre_tkn)
 
         # dump data
         print("[preprocess] dumping processed cpc/absa instances to {}.".format(DATA_DIR))
-        dump_pickle(DATA_DIR+"processed_cpc_train.pkl", cpc_trn_data)
+        #dump_pickle(DATA_DIR+"processed_cpc_train.pkl", cpc_trn_data)
         dump_pickle(DATA_DIR+"processed_cpc_test.pkl", cpc_tst_data)
     else:
         print("[preprocess] loading cpc_trn/cpc_tst data ...")
-        cpc_trn_data = load_pickle(DATA_DIR+"processed_cpc_train.pkl")
+        #cpc_trn_data = load_pickle(DATA_DIR+"processed_cpc_train.pkl")
         cpc_tst_data = load_pickle(DATA_DIR+"processed_cpc_test.pkl")
 
     # preprocess or load absa
@@ -364,7 +364,7 @@ if __name__ == "__main__":
     # print cpc/absa statistics
     print("[preprocess] statistics:")
     print("\t# CPC Train:{}, CPC Test:{}, ABSA:{}".format(
-        len(cpc_trn_data), len(cpc_tst_data), len(absa_data)))
+        1, len(cpc_tst_data), len(absa_data)))
 
     # generate bert embedding 
     if args.generate_bert_emb:
@@ -377,14 +377,14 @@ if __name__ == "__main__":
             bert = bert.cuda()
 
         print("\t\t CPC data ...")
-        cpc_trn_bert_emb = preprocess_bert_embedding(cpc_trn_data, bert, use_gpu)
+        #cpc_trn_bert_emb = preprocess_bert_embedding(cpc_trn_data, bert, use_gpu)
         cpc_tst_bert_emb = preprocess_bert_embedding(cpc_tst_data, bert, use_gpu)
-        dump_pickle(DATA_DIR+"cpc_train_bert_emb.pkl", cpc_trn_bert_emb)
+        #dump_pickle(DATA_DIR+"cpc_train_bert_emb.pkl", cpc_trn_bert_emb)
         dump_pickle(DATA_DIR+"cpc_test_bert_emb.pkl", cpc_tst_bert_emb)
 
         print("\t\t ABSA data ...")
-        absa_bert_emb = preprocess_bert_embedding(absa_data, bert, use_gpu)
-        dump_pickle(DATA_DIR+"absa_bert_emb.pkl", absa_bert_emb)
+        #absa_bert_emb = preprocess_bert_embedding(absa_data, bert, use_gpu)
+        #dump_pickle(DATA_DIR+"absa_bert_emb.pkl", absa_bert_emb)
 
     if args.generate_glove_emb:
         print("[preprocess] generating GLOVE embedding ...")
@@ -409,14 +409,14 @@ if __name__ == "__main__":
         print("\t\t CPC data ...")
 
         # `nlp` is the `spacy.lang.en.English` language parser class
-        cpc_trn_depg = preprocess_depgraph(cpc_trn_data, nlp)
+        #cpc_trn_depg = preprocess_depgraph(cpc_trn_data, nlp)
         cpc_tst_depg = preprocess_depgraph(cpc_tst_data, nlp)
-        dump_pickle(DATA_DIR+"cpc_train_depgraph.pkl", cpc_trn_depg)
+        #dump_pickle(DATA_DIR+"cpc_train_depgraph.pkl", cpc_trn_depg)
         dump_pickle(DATA_DIR+"cpc_test_depgraph.pkl", cpc_tst_depg)
 
         print("\t\t ABSA data ...")
-        absa_depg = preprocess_depgraph(absa_data, nlp)
-        dump_pickle(DATA_DIR+"absa_depgraph.pkl", absa_depg)
+        #absa_depg = preprocess_depgraph(absa_data, nlp)
+        #dump_pickle(DATA_DIR+"absa_depgraph.pkl", absa_depg)
     
     else:
         print("[preprocess] loading dependency graph of cpc and absa")
@@ -429,15 +429,15 @@ if __name__ == "__main__":
         print("[preprocess] generating aspect term distance ...")
         print("\t\t CPC data ...")
 
-        cpc_trn_aspect_distA = preprocess_aspect_dist(cpc_trn_data, cpc_trn_depg, 'A')
+        #cpc_trn_aspect_distA = preprocess_aspect_dist(cpc_trn_data, cpc_trn_depg, 'A')
         cpc_tst_aspect_distA = preprocess_aspect_dist(cpc_tst_data, cpc_tst_depg, 'A')
-        cpc_trn_aspect_distB = preprocess_aspect_dist(cpc_trn_data, cpc_trn_depg, 'B')
+        #cpc_trn_aspect_distB = preprocess_aspect_dist(cpc_trn_data, cpc_trn_depg, 'B')
         cpc_tst_aspect_distB = preprocess_aspect_dist(cpc_tst_data, cpc_tst_depg, 'B')
-        dump_pickle(DATA_DIR+"cpc_train_aspect_distA.pkl", cpc_trn_aspect_distA)
+        #dump_pickle(DATA_DIR+"cpc_train_aspect_distA.pkl", cpc_trn_aspect_distA)
         dump_pickle(DATA_DIR+"cpc_test_aspect_distA.pkl", cpc_tst_aspect_distA)
-        dump_pickle(DATA_DIR+"cpc_train_aspect_distB.pkl", cpc_trn_aspect_distB)
+        #dump_pickle(DATA_DIR+"cpc_train_aspect_distB.pkl", cpc_trn_aspect_distB)
         dump_pickle(DATA_DIR+"cpc_test_aspect_distB.pkl", cpc_tst_aspect_distB)
 
         print("\t\t ABSA data ...")
-        absa_aspect_dist = preprocess_aspect_dist(absa_data, absa_depg, 'A')
-        dump_pickle(DATA_DIR+"absa_aspect_dist.pkl", absa_aspect_dist)
+        #absa_aspect_dist = preprocess_aspect_dist(absa_data, absa_depg, 'A')
+        #dump_pickle(DATA_DIR+"absa_aspect_dist.pkl", absa_aspect_dist)
