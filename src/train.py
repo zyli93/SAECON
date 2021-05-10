@@ -293,7 +293,7 @@ def evaluate(model, data_iter, restore_model_path, device, for_test):
         perf_msg - performance message composed by `compose_metric_perf_msg`
     """
     model.eval()
-    predictions, groundtruths = [], []
+    predictions, groundtruths, ents, groundtruthlist, rawsentence = [], [], [], [], []
 
     task = "Test" if for_test else "Val"
 
@@ -307,23 +307,26 @@ def evaluate(model, data_iter, restore_model_path, device, for_test):
             batch = move_batch_to_device(batch, device)
             eval_pred = model(batch)
             eval_logits = eval_pred['prediction']
+            eval_ent = eval_pred['ent']
             eval_pred = torch.argmax(torch.softmax(eval_logits, 1), 1)
             eval_groundtruth = torch.tensor(
                 [x.get_label_id() for x in batch['instances']])
             # eval_pred = eval_pred.cpu()
             # eval_groundtruth = eval_groundtruth.cpu()
+            ents.extend(eval_ent)
             predictions.append(eval_pred)
             groundtruths.append(eval_groundtruth)
+            groundtruthlist.extend(eval_groundtruth)
+            eval_raw_sent = [x.get_sentence_raw() for x in batch['instances']]
+            rawsentence.extend(eval_raw_sent)
 
-            # all_entA.append(eval_entA)
-            # all_entB.append(eval_entB)
 
         # compute metric performance
         metric_dict = compute_metrics(predictions, groundtruths)
         # compose a message for performance
         perf_msg = compose_metric_perf_msg(metric_dict)
     
-    return metric_dict, perf_msg
+    return metric_dict, perf_msg, ents, groundtruthlist, rawsentence
 
 def setup_wandb(args):
     wandb.init(project='saecc', entity='louixp')
@@ -473,11 +476,16 @@ if __name__ == "__main__":
     if args.task == "train":
         train(args, device, model, dataloader)
     elif args.task == "test":
-        _, perf_msg = evaluate(model, 
+        _, perf_msg, eval_ent, gt, rawsent = evaluate(model,
             data_iter=dataloader.get_batch_testval(for_test=True),
             restore_model_path=args.load_model_path, 
             device=device, for_test=True)
         logging.info(f"[Perf-CPC][Test] {perf_msg}")
         print(f"{get_time()} [Perf-CPC][Test] {perf_msg}")
+
+        for i, each in enumerate(rawsent):
+            print("{}, Ground Truth: {}, (EntityA, EntityB): {}".format(each, gt[i], eval_ent[i]))
+
+
     else:
         raise ValueError("args.task can only be train or test")

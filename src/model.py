@@ -55,17 +55,18 @@ class SaeccModel(nn.Module):
         self._reset_params()
 
     def forward(self, batch):
-        all_ent = []
+
+        batch_ent = []
         # CPC. cpc_pipeline outputs a dict of `nodeA`, `nodeB`, `wordA`, and `wordB`
         if batch['task'] == CPC:
             hidden_cpc = self.cpc_pipeline(batch)
             hidden_absa_entA, entA = self.absa_pipeline(batch)
             hidden_absa_entB, entB = self.absa_pipeline(batch, switch=True)
             
-            print(entA)
-            print(entB)
-            #batch_ent = zip(entA.tolist(), entB.tolist()) 
-            #print(list(batch_ent))
+            # print(entA)
+            # print(entB)
+            batch_ent = zip(entA.tolist(), entB.tolist())
+            # print(list(batch_ent))
             # After cat: (batch_size, 3*feature_dim)
             hidden_entA = torch.cat(
                 [hidden_cpc['nodeA'], hidden_cpc['wordA'], hidden_absa_entA], 1)
@@ -85,12 +86,10 @@ class SaeccModel(nn.Module):
         
         if self.use_dom_inv:
             dom_logit = self.dom_inv(hidden_absa)
-            return {'prediction': pred, "domain_logit": dom_logit}
+            return {'prediction': pred, "domain_logit": dom_logit, "ent": batch_ent}
 
-        if batch['task'] == CPC:
-            return {'prediction': pred}
-        else:
-            return {'prediction': pred}
+
+        return {'prediction': pred}
 
 
     def _reset_params(self):
