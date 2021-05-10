@@ -483,8 +483,11 @@ if __name__ == "__main__":
             device=device, for_test=True)
         logging.info(f"[Perf-CPC][Test] {perf_msg}")
         print(f"{get_time()} [Perf-CPC][Test] {perf_msg}")
-
+        num_affirm, num_deny = 0, 0    
         for i, each in enumerate(rawsent):
+            if gt[i] == "NONE" and eval_ent[i][0] == eval_ent[i][1]:
+                num_affirm += 1
+            elif gt[i] == "BETTER" and 
             print("{}, Ground Truth: {}, (EntityA, EntityB): {}".format(each, gt[i], eval_ent[i]))
 
 
