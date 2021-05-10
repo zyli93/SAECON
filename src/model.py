@@ -16,6 +16,8 @@ import torch.nn.functional as F
 from torch.nn.utils.rnn import pad_sequence
 from transformers import BertModel
 from pytorch_revgrad import RevGrad
+from torch_geometric.nn import GATConv
+from torch_geometric.utils import to_undirected
 
 from module import SGCNConv
 from ABSA.models import LCFS_BERT
@@ -211,3 +213,55 @@ def FastCpcPipeline(CpcPipeline):
         # TODO (for Yilong): vectorize (what's this?)
 
         pass
+
+class EDGAT(nn.Module):
+    def __init__(
+        self, 
+        dim_in,
+        n_layers,
+        device
+        ):
+        super().__init__()
+        self.device = device
+        dims = [dim_in] + [300] * n_layers
+        self.gat_convs = nn.ModuleList([
+            GATConv(d_in, d_out // 6, heads=6)
+            for d_in, d_out in zip(dims[:-1], dims[1:])
+        ])
+        self.readout = nn.Linear(dims[-1] * 2, 3)
+    
+    def forward(self, batch):
+        depgraph = batch['depgraph']
+        depgraph.edge_index = to_undirected(depgraph.edge_index)
+        for conv in self.gat_convs:
+            depgraph.x = conv(
+                x=depgraph.x,
+                edge_index=depgraph.edge_index
+            )
+
+        node_hidden = pad_sequence(
+            [dg.x for dg in depgraph.to_data_list()],
+            batch_first=True
+        )
+        
+        nodeA, nodeB = self._extract_entities(batch, node_hidden)
+        nodeA, nodeB = torch.vstack(nodeA), torch.vstack(nodeB) 
+        nodes = torch.cat([nodeA, nodeB], 1)
+
+        logits = self.readout(nodes)
+        return logits
+
+    def _extract_entities(self, batch, node_hidden):
+        # extract entities
+        instances = batch['instances']
+        entA_pos = [torch.tensor(ins.entityA_pos).to(self.device) for ins in instances]
+        entB_pos = [torch.tensor(ins.entityB_pos).to(self.device) for ins in instances]
+
+        nodeA, nodeB = [], []
+        for seq, posA, posB in zip(node_hidden, entA_pos, entB_pos):
+            embedA = torch.index_select(seq, 0, posA)
+            nodeA.append(torch.mean(embedA, dim=0))
+            embedB = torch.index_select(seq, 0, posB)
+            nodeB.append(torch.mean(embedB, dim=0))
+
+        return nodeA, nodeB
