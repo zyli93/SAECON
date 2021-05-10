@@ -518,11 +518,11 @@ if __name__ == "__main__":
 
         with open("./good_absa.txt", "w") as f:
             for each in affirm_list:
-                f.write(each)
+                f.write(each + "\n")
 
         with open("./bad_absa.txt", "w") as f:
             for each in deny_list:
-                f.write(each)
+                f.write(each + "\n")
 
     else:
         raise ValueError("args.task can only be train or test")
