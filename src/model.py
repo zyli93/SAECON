@@ -54,6 +54,21 @@ class SaeccModel(nn.Module):
 
         self._reset_params()
 
+    def id2label(self, ent_tensor):
+
+        ent_list = ent_tensor.tolist()
+        res = []
+
+        for each in ent_list:
+            if each == 0:
+                res.append("NEG")
+            elif each == 1:
+                res.append("NEU")
+            elif each == 2:
+                res.append("POS")
+
+        return res
+
     def forward(self, batch):
 
         batch_ent = []
@@ -62,10 +77,10 @@ class SaeccModel(nn.Module):
             hidden_cpc = self.cpc_pipeline(batch)
             hidden_absa_entA, entA = self.absa_pipeline(batch)
             hidden_absa_entB, entB = self.absa_pipeline(batch, switch=True)
-            
+
             # print(entA)
             # print(entB)
-            batch_ent = zip(entA.tolist(), entB.tolist())
+            batch_ent = zip(self.id2label(entA), self.id2label(entB))
             # print(list(batch_ent))
             # After cat: (batch_size, 3*feature_dim)
             hidden_entA = torch.cat(

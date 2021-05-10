@@ -316,7 +316,8 @@ def evaluate(model, data_iter, restore_model_path, device, for_test):
             ents.extend(eval_ent)
             predictions.append(eval_pred)
             groundtruths.append(eval_groundtruth)
-            groundtruthlist.extend(eval_groundtruth)
+            str_groundtruth = [x.get_label() for x in batch['instances']]
+            groundtruthlist.extend(str_groundtruth)
             eval_raw_sent = [x.get_sentence_raw() for x in batch['instances']]
             rawsentence.extend(eval_raw_sent)
 
