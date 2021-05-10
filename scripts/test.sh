@@ -1,0 +1,49 @@
+python src/train.py \
+    --experimentID verify_test\
+    --task train \
+    --gpu_id 2 \
+    --use_lr_scheduler \
+    --input_emb fix \
+    --emb_dim 768 \
+    --feature_dim 72 \
+    --lr 0.0001 \
+    --absa_lr 0.0002\
+    --reg_weight 0.0001 \
+    --dropout 0.2 \
+    --num_ep 3 \
+    --batch_size 16 \
+    --batch_ratio 1:1 \
+    --eval_per_ep 1 \
+    --dom_adapt \
+    --eval_after_epnum 1 \
+    --sgcn_dims 256 128 \
+    --sgcn_gating \
+    --sgcn_directed \
+    --log_batch_num 20 \
+    --absa_log_batch_num 20
+    # --data_augmentation \
+
+python src/train.py \
+    --experimentID verify_test_augment\
+    --task train \
+    --gpu_id 2 \
+    --use_lr_scheduler \
+    --input_emb fix \
+    --emb_dim 768 \
+    --feature_dim 72 \
+    --lr 0.0001 \
+    --absa_lr 0.0002\
+    --reg_weight 0.00001 \
+    --dropout 0.1 \
+    --num_ep 10 \
+    --batch_size 16 \
+    --batch_ratio 1:1 \
+    --eval_per_ep 1 \
+    --dom_adapt \
+    --eval_after_epnum 1 \
+    --sgcn_dims 256 \
+    --data_augmentation \
+    --sgcn_gating \
+    --sgcn_directed \
+    --log_batch_num 20 \
+    --absa_log_batch_num 20

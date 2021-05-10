@@ -143,3 +143,4 @@ core
 
 wandb
 not_sync/
+plot/

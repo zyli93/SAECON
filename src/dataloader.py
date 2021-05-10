@@ -93,8 +93,14 @@ class DataLoader():
                 DATA_DIR+"absa_{}_emb.pkl".format(emb_model))
 
         # Dynamically separate 20% in each label for validation
-        self.cpc_trn_indices, self.cpc_val_indices = self.__split_val_for_cpc()
+        self.cpc_trn_indices, self.cpc_val_indices, self.cpc_indices_dict = \
+            self.__split_val_for_cpc()
         self.cpc_tst_indices = list(range(len(self.cpc_tst)))
+
+        # Data Upsampling
+        if args.up_sample:
+            self.cpc_trn_indices = self.__upsampling()
+
         
         if args.data_augmentation:
             print("[DataLoader] augmenting data ...")
@@ -104,6 +110,22 @@ class DataLoader():
         self.trn_batch_num = self.__get_batch_num(len(self.cpc_trn_indices), self.batch_size)
         self.tst_batch_num = self.__get_batch_num(len(self.cpc_tst_indices), self.batch_size)
         self.val_batch_num = self.__get_batch_num(len(self.cpc_val_indices), self.batch_size)
+    
+
+    def __upsampling(self):
+        """upsampling 0 and 1 to the same number as 2"""
+        target_count = len(self.cpc_indices_dict[2])
+        orig_0, orig_1 = len(self.cpc_indices_dict[0]), len(self.cpc_indices_dict[1])
+        upsample_0 = np.random.choice(self.cpc_indices_dict[0], target_count-orig_0)
+        upsample_1 = np.random.choice(self.cpc_indices_dict[1], target_count-orig_1)
+        return_indices = self.cpc_indices_dict[2] + \
+            list(upsample_0) + self.cpc_indices_dict[0] + \
+            list(upsample_1) + self.cpc_indices_dict[1]
+        print(f"After upsampling, target {target_count}, +0 samples {target_count-orig_0}, "+
+            f"+1 samples {target_count-orig_1}, final {len(return_indices)}")
+        
+        return return_indices
+
 
     def __data_permutation(self):
         pass
@@ -144,7 +166,7 @@ class DataLoader():
         """
         if task == CPC:
             # CPC train/validation
-            if split == "train" or "val":
+            if split == "train" or split == "val":
                 instances = [self.cpc_trn[x] for x in indices]
                 emb = [self.cpc_trn_emb[x] for x in indices]
                 depg = [self.cpc_trn_depg[x] for x in indices]
@@ -189,6 +211,7 @@ class DataLoader():
 
     def __split_val_for_cpc(self):
         indices = {i:[] for i in [0,1,2]}
+        trn_indices_bylabel = {}
         trn_indices, val_indices = [], []
         trn_counts, val_counts = [], []
         for ins in self.cpc_trn:
@@ -196,6 +219,7 @@ class DataLoader():
         for label in [0,1,2]:
             trn_idx, val_idx = train_test_split(indices[label], test_size=VAL_RATIO)
             trn_indices.extend(trn_idx)
+            trn_indices_bylabel[label] = trn_idx
             val_indices.extend(val_idx)
             trn_counts.append(len(trn_idx))
             val_counts.append(len(val_idx))
@@ -204,7 +228,7 @@ class DataLoader():
         print("\t[Train] 0:{}, 1:{}, 2:{}; [Validation] 0:{}, 1:{}, 2:{}".format(
             *trn_counts, *val_counts))
         
-        return trn_indices, val_indices
+        return trn_indices, val_indices, trn_indices_bylabel
 
     
     def get_batch_train(self):

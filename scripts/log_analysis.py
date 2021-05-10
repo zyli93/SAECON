@@ -59,7 +59,7 @@ class Run:
         
 if __name__ == "__main__":
     runs = []
-    for file_path in tqdm(glob.glob("log/*.log")):
+    for file_path in tqdm(glob.glob("log/grid_ratio_*")):
         runs.append(Run.from_file(file_path))
     
     f1_better_best, f1_better_best_i = max((r.val_F1_better_best, i) for i, r in enumerate(runs))
