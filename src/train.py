@@ -309,8 +309,9 @@ def evaluate(model, data_iter, restore_model_path, device, for_test):
             batch = move_batch_to_device(batch, device)
             eval_pred = model(batch)
             eval_logits = eval_pred['prediction']
-            eval_entA = eval_pred['entityA']
-            eval_entB = eval_pred['entityB']
+            print(len(eval_pred))
+            # eval_entA = eval_pred['entityA']
+            # eval_entB = eval_pred['entityB']
             eval_pred = torch.argmax(torch.softmax(eval_logits, 1), 1)
             eval_groundtruth = torch.tensor(
                 [x.get_label_id() for x in batch['instances']])
@@ -319,15 +320,15 @@ def evaluate(model, data_iter, restore_model_path, device, for_test):
             predictions.append(eval_pred)
             groundtruths.append(eval_groundtruth)
 
-            all_entA.append(eval_entA)
-            all_entB.append(eval_entB)
+            # all_entA.append(eval_entA)
+            # all_entB.append(eval_entB)
 
         # compute metric performance
         metric_dict = compute_metrics(predictions, groundtruths)
         # compose a message for performance
         perf_msg = compose_metric_perf_msg(metric_dict)
     
-    return metric_dict, perf_msg, all_entA, all_entB
+    return metric_dict, perf_msg
 
 def setup_wandb(args):
     wandb.init(project='saecc', entity='louixp')
