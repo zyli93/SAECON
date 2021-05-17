@@ -1,6 +1,5 @@
-# SAECC
-Sentiment Analysis Enhanced Comparative Classification
-Use Saecc as the temporal name, will change it later.
+# SAECON
+Sentiment Analysis Enhanced COmparative Network
 
 ## Create docker
 ```
@@ -9,7 +8,7 @@ nvidia-docker run -it --rm -v /local2/zyli/SAECC:/workspace/SAECC -v /home/zyli/
 
 ## Prerequisite
 
-To run preprocess for Saecc, we need to get ready for a few things: datasets,  Python packages, nltk corpora dependencies, pre-trained bert model, and glove pre-trained word vectors. 
+To run preprocess for SAECON, we need to get ready for a few things: datasets,  Python packages, nltk corpora dependencies, pre-trained bert model, and glove pre-trained word vectors. 
 ### Data
 #### Comparative Preference Classification (CPC)
 The datasets are included in this repo. They are originally released by authors of [Categorizing Comparative Sentences](https://arxiv.org/abs/1809.06152). Here's the 
