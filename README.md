@@ -2,11 +2,6 @@
 Sentiment Analysis Enhanced Comparative Classification
 Use Saecc as the temporal name, will change it later.
 
-## TODO list
-
-- [ ] entityA_pos is the position of pretokens, does it matter?
-- [ ] `dist` created by tokens or pretokens? ==> by tokens
-
 ## Create docker
 ```
 nvidia-docker run -it --rm -v /local2/zyli/SAECC:/workspace/SAECC -v /home/zyli/nltk_data:/workspace/nltk_data nvcr.io/nvidia/pytorch:20.03-py3
@@ -36,24 +31,8 @@ On our machine, we have PyTorch version `1.8.1+cu102` and CUDA version `10.2`. T
 ```
 pip install torch-scatter -f https://pytorch-geometric.com/whl/torch-${TORCH}+${CUDA}.html
 pip install torch-sparse -f https://pytorch-geometric.com/whl/torch-${TORCH}+${CUDA}.html
-pip install torch-cluster -f https://pytorch-geometric.com/whl/torch-${TORCH}+${CUDA}.html
-pip install torch-spline-conv -f https://pytorch-geometric.com/whl/torch-${TORCH}+${CUDA}.html
 pip install torch-geometric
 ```
-
-```
-# 20.03-py3
-pip install torch-scatter -f https://pytorch-geometric.com/whl/torch-1.8.1+cu102.html
-pip install torch-sparse -f https://pytorch-geometric.com/whl/torch-1.8.1+cu102.html
-pip install torch-cluster -f https://pytorch-geometric.com/whl/torch-1.8.1+cu102.html
-pip install torch-spline-conv -f https://pytorch-geometric.com/whl/torch-1.8.1+cu102.html
-pip install torch-geometric
-
-pip install torch-scatter -f https://pytorch-geometric.com/whl/torch-1.4.0+cu102.html
-pip install torch-sparse -f https://pytorch-geometric.com/whl/torch-1.4.0+cu102.html
-pip install torch-geometric
-```
-
 
 ### GloVe
 Please download pretrained GloVe word embeddings from [here](https://nlp.stanford.edu/projects/glove/). The dimension is open to selection. However, GloVe embedding format doesn't inherently work well with `KeyedVectors` class in `gensim`. So please first convert GloVe embeddings to word2vec format following this [link](https://radimrehurek.com/gensim/scripts/glove2word2vec.html). Transformed GloVe embedding dumps should be placed in `./data/glove/glove.6B.[dim]d.word2vec_format.txt`. The `[dim]` should be replaced by the dimension of selection.
@@ -69,6 +48,46 @@ python src/preprocess.py [--options]
 ```
 Use `-h` to see all options. For the first time, run this:
 ```
-python src/preprocess.py --process_cpc_instances --process_absa_instances --generate_bert_emb --generate_glove_emb
+python src/preprocess.py \
+    --gpu_id 1 \
+    --process_cpc_instances \
+    --process_absa_instances \
+    --generate_bert_emb \
+    --generate_glove_emb \
+    --generate_dep_graph \
+    --generate_aspect_dist
 ```
 Output files are saved in `./data/`.
+
+## Training
+To run the training pipelines, use
+```
+python src/train.py [--options]
+```
+Use `-h` to see all options. Example usage:
+```
+python src/train.py \
+    --task train \
+    --gpu_id 0 \
+    --use_lr_scheduler \
+    --input_emb fix \
+    --emb_dim 768 \
+    --feature_dim 120 \
+    --lr 0.0005 \
+    --absa_lr 0.002 \
+    --reg_weight 0.00001 \
+    --dropout 0.1 \
+    --num_ep 50 \
+    --batch_size 16 \
+    --batch_ratio 1:1 \
+    --eval_per_ep 1 \
+    --eval_after_epnum 1 \
+    --sgcn_dims 256 \
+    --sgcn_gating \
+    --sgcn_directed \
+    --log_batch_num 1 \
+    --absa_log_batch_num 1 
+```
+
+## Testing
+
