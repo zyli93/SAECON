@@ -144,3 +144,9 @@ core
 wandb
 not_sync/
 plot/
+notebooks_/
+ckpt/
+.idea/
+.idea_xx/
+.vscode/
+.vscode_xx/

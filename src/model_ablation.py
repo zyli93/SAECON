@@ -61,16 +61,16 @@ class SaeccModel(nn.Module):
             hidden_absa_entB, _ = self.absa_pipeline(batch, switch=True)
 
             # Ablation Study: disable LSTM
-            # hidden_cpc['wordA'] = torch.zeros(hidden_cpc['wordA'].shape).to(self.device)
-            # hidden_cpc['wordB'] = torch.zeros(hidden_cpc['wordB'].shape).to(self.device)
+            hidden_cpc['wordA'] = torch.zeros(hidden_cpc['wordA'].shape).to(self.device)
+            hidden_cpc['wordB'] = torch.zeros(hidden_cpc['wordB'].shape).to(self.device)
 
             # Ablation Study: disable SGCN
             # hidden_cpc['nodeA'] = torch.zeros(hidden_cpc['nodeA'].shape).to(self.device)
             # hidden_cpc['nodeB'] = torch.zeros(hidden_cpc['nodeB'].shape).to(self.device)
 
             # Ablation Study: disable hidden_absa_entA
-            hidden_absa_entA = torch.zeros(hidden_absa_entA.shape).to(self.device)
-            hidden_absa_entB = torch.zeros(hidden_absa_entB.shape).to(self.device)
+            # hidden_absa_entA = torch.zeros(hidden_absa_entA.shape).to(self.device)
+            # hidden_absa_entB = torch.zeros(hidden_absa_entB.shape).to(self.device)
 
             # After cat: (batch_size, 3*feature_dim)
             hidden_entA = torch.cat(

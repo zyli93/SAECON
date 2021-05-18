@@ -2,10 +2,6 @@
 Sentiment Analysis Enhanced Comparative Classification
 Use Saecc as the temporal name, will change it later.
 
-## Create docker
-```
-nvidia-docker run -it --rm -v /local2/zyli/SAECC:/workspace/SAECC -v /home/zyli/nltk_data:/workspace/nltk_data nvcr.io/nvidia/pytorch:20.03-py3
-```
 
 ## Prerequisite
 

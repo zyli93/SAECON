@@ -130,7 +130,11 @@ def train(args, device, model, dataloader):
         absa_optim, absa_sched = get_optimizer_and_scheduler(args, ABSA, model)
 
     # create loss function
-    criterion = nn.CrossEntropyLoss()
+    loss_weights = [float(x) for x in args.loss_weights]
+    print("Using loss weights ", loss_weights)
+    criterion_cpc = nn.CrossEntropyLoss(weight=torch.tensor(loss_weights).to(device))
+    criterion_absa = nn.CrossEntropyLoss()
+    # criterion = nn.CrossEntropyLoss()
     if args.dom_adapt:
         dom_criterion = nn.BCEWithLogitsLoss()
 
@@ -169,6 +173,7 @@ def train(args, device, model, dataloader):
             optim.zero_grad()
 
             # compute loss, compute derivation, optimize
+            criterion = criterion_cpc if task == CPC else criterion_absa
             loss = task_loss = criterion(pred_logits, target)
             
             # TODO: check optimizer
@@ -236,12 +241,13 @@ def train(args, device, model, dataloader):
         print(f"{get_time()} [Perf][Epoch] {msg}")
 
         # compute and log training performance after each epoch
-        metric_dict = compute_metrics(predictions, groundtruths)
-        perf_msg = compose_metric_perf_msg(metric_dict)
-        if args.use_wandb:
-            wandb.log({'train F1-' + str(k): v for k, v in metric_dict.items()})
-        logging.info(f"[Perf][Train][CPC][Epoch]{ep} " + perf_msg)
-        print(f"{get_time()} [Perf][Train][CPC][Epoch]{ep} " + perf_msg)
+        # TODO: uncomment this!
+        # metric_dict = compute_metrics(predictions, groundtruths)
+        # perf_msg = compose_metric_perf_msg(metric_dict)
+        # if args.use_wandb:
+        #     wandb.log({'train F1-' + str(k): v for k, v in metric_dict.items()})
+        # logging.info(f"[Perf][Train][CPC][Epoch]{ep} " + perf_msg)
+        # print(f"{get_time()} [Perf][Train][CPC][Epoch]{ep} " + perf_msg)
 
         # averaging loss for epoch
         if args.use_lr_scheduler:
@@ -251,13 +257,21 @@ def train(args, device, model, dataloader):
 
         # run validation
         if not ep % args.eval_per_ep and ep >= args.eval_after_epnum - 1:
+            # TODO: uncomment this!
             metric_dict, perf_msg = evaluate(model, for_test=False,
                 data_iter=dataloader.get_batch_testval(False), 
                 restore_model_path=None, device=device)
             if args.use_wandb:
                 wandb.log({'eval F1-' + str(k): v for k, v in metric_dict.items()})
             logging.info(f"[Perf-CPC][val][epoch]{ep} {perf_msg}")
-            print(f"{get_time()} [Perf-CPC][val][epoch]{ep} {msg}")
+            print(f"{get_time()} [Perf-CPC][val][epoch]{ep} {perf_msg}")
+
+            _, perf_msg = evaluate(model, 
+                data_iter=dataloader.get_batch_testval(for_test=True),
+                restore_model_path=None, 
+                device=device, for_test=True)
+            logging.info(f"[Perf-CPC][Test] {perf_msg}")
+            print(f"{get_time()} [Perf-CPC][Test] {perf_msg}")
 
         # save model
         if args.save_model and not ep % args.save_per_ep \
@@ -325,6 +339,8 @@ if __name__ == "__main__":
     parser.add_argument("--random_seed", type=int, default=2021)
     parser.add_argument("--shuffle", action="store_true", default=False,
         help="Whether to shuffle data before a new epoch")
+    parser.add_argument("--up_sample", action="store_true", default=False,
+        help="Upsample dataset inside dataloader")
 
     # scheduler
     parser.add_argument("--use_lr_scheduler", action="store_true", default=False,
@@ -342,6 +358,8 @@ if __name__ == "__main__":
     parser.add_argument("--feature_dim", type=int, default=100) 
 
     # training config
+    parser.add_argument("--loss_weights", nargs="+", type=float, default=[1.,1.,1.],
+        help="weight of loss")
     parser.add_argument("--lr", type=float, default=0.005)
     parser.add_argument("--reg_weight", type=float, default=0.0001)
     parser.add_argument("--dropout", type=float, default=0.3)
@@ -454,10 +472,10 @@ if __name__ == "__main__":
         train(args, device, model, dataloader)
     elif args.task == "test":
         _, perf_msg = evaluate(model, 
-            dataloader=dataloader.get_batch_testval(for_test=True),
+            data_iter=dataloader.get_batch_testval(for_test=True),
             restore_model_path=args.load_model_path, 
-            devic=device, for_test=True)
+            device=device, for_test=True)
         logging.info(f"[Perf-CPC][Test] {perf_msg}")
-        print(f"{get_time()} [Perf-CPC][Test] {msg}")
+        print(f"{get_time()} [Perf-CPC][Test] {perf_msg}")
     else:
         raise ValueError("args.task can only be train or test")

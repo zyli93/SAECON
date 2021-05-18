@@ -185,6 +185,10 @@ def train(args, device, model, dataloader):
                 dom_loss = dom_criterion(dom_pred, dom_target)
                 loss = task_loss + dom_loss
             loss.backward()
+
+            # if task == ABSA:
+            #     optim.step()
+            
             optim.step()
 
             # accumulate loss
@@ -426,7 +430,6 @@ if __name__ == "__main__":
     def get_freer_gpu():
         os.system('nvidia-smi -q -d Memory |grep -A4 GPU|grep Free >tmp')
         memory_available = [int(x.split()[2]) for x in open('tmp', 'r').readlines()]
-        os.system('rm tmp')
         return np.argmax(memory_available)
 
     args.gpu_id = get_freer_gpu()
@@ -463,17 +466,23 @@ if __name__ == "__main__":
     torch.manual_seed(args.random_seed)
     np.random.seed(args.random_seed)
 
-    # dataloader = DataLoader(args)
+    dataloader = DataLoader(args)
 
     # move model to cuda device
     model = SaeccModel(args, device)
     model = model.to(device)
 
-    for name, param in model.named_parameters():
-        if param.requires_grad:
-            print(name, param.data.size())
+    restore_model_path = "./ckpt/model_expIDFixedABSA_ep9" # TODO: finish here!
+    print(f"[Eval] loading model from {restore_model_path}")
+    model.load_state_dict(torch.load(restore_model_path))
+    for param in model.absa_pipeline.parameters():
+        param.requires_grad = False
 
-    sys.exit()
+    # for name, param in model.named_parameters():
+    #     if param.requires_grad:
+    #         print(name, param.data.size())
+
+    # sys.exit()
 
     if args.task == "train":
         train(args, device, model, dataloader)

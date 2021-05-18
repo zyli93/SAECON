@@ -1,6 +1,8 @@
+import sys
 import logging
 import torch
 from torch import nn, optim
+from utils import get_time
 
 from model import EDGAT
 from dataloader import DataLoader
@@ -12,15 +14,24 @@ class Args:
     batch_ratio = "1:0"
     input_emb = "fix"
     data_augmentation = False
+    up_sample = False
 
 dataloader = DataLoader(Args)
 device = "cuda:0"
-model = EDGAT(768, 10, device).to(device)
+model = EDGAT(768, 8, device).to(device)
 criterion = nn.CrossEntropyLoss()
 optim = optim.Adam(
     model.parameters(), 
     lr=5e-4
 )
+
+# pytorch_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+# print(pytorch_total_params)
+
+# for p in model.parameters():
+#     if p.requires_grad:
+#         print(p.numel())
+# sys.exit()
 
 for ep in range(Args.num_ep):
     trn_iter = dataloader.get_batch_train()
@@ -31,7 +42,7 @@ for ep in range(Args.num_ep):
     cpc_batch_count = 0
     predictions, groundtruths = [], []  # used to compute training performance
 
-    print(f"[Time] Starting Epoch {ep}")
+    print(f"[{get_time()}] Starting Epoch {ep}")
 
     for bid, batch in enumerate(trn_iter):
 
@@ -71,12 +82,12 @@ for ep in range(Args.num_ep):
         
     # log training loss after each epoch
     msg = compose_msg("cpc", ep, 0, 0, 0, total_cpc_loss, cpc_batch_count, 0, 0)
-    print("[Perf][Epoch] " + msg)
+    print(get_time() + "[Perf][Epoch] " + msg)
 
     # compute and log training performance after each epoch
     metric_dict = compute_metrics(predictions, groundtruths)
     perf_msg = compose_metric_perf_msg(metric_dict)
-    print(f"[Perf][Train][CPC][Epoch]{ep} " + perf_msg)
+    print(f"{get_time()}[Perf][Train][CPC][Epoch]{ep} " + perf_msg)
 
     # run validation
     model.eval()
@@ -84,19 +95,19 @@ for ep in range(Args.num_ep):
 
     task = "Test"
 
-    with torch.no_grad():
-        for i, batch in enumerate(dataloader.get_batch_testval()):
-            batch = move_batch_to_device(batch, device)
-            eval_logits = model(batch)
-            eval_pred = torch.argmax(torch.softmax(eval_logits, 1), 1)
-            eval_groundtruth = torch.tensor(
-                [x.get_label_id() for x in batch['instances']])
-            predictions.append(eval_pred)
-            groundtruths.append(eval_groundtruth)
+    # with torch.no_grad():
+    #     for i, batch in enumerate(dataloader.get_batch_testval(for_test=True)):
+    #         batch = move_batch_to_device(batch, device)
+    #         eval_logits = model(batch)
+    #         eval_pred = torch.argmax(torch.softmax(eval_logits, 1), 1)
+    #         eval_groundtruth = torch.tensor(
+    #             [x.get_label_id() for x in batch['instances']])
+    #         predictions.append(eval_pred)
+    #         groundtruths.append(eval_groundtruth)
 
-        # compute metric performance
-        metric_dict = compute_metrics(predictions, groundtruths)
-        # compose a message for performance
-        perf_msg = compose_metric_perf_msg(metric_dict)
+    #     # compute metric performance
+    #     metric_dict = compute_metrics(predictions, groundtruths)
+    #     # compose a message for performance
+    #     perf_msg = compose_metric_perf_msg(metric_dict)
     
-    print(f"[Perf-CPC][val][epoch]{ep} {perf_msg}")
+    # print(f"[Perf-CPC][val][epoch]{ep} {perf_msg}")

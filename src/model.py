@@ -210,9 +210,7 @@ class CpcPipeline(nn.Module):
 
 def FastCpcPipeline(CpcPipeline):
     def _extract_entities(self, batch, node_hidden, word_hidden):
-        # TODO (for Yilong): vectorize (what's this?)
-
-        pass
+        raise NotImplementedError("method not implemented")
 
 class EDGAT(nn.Module):
     def __init__(
