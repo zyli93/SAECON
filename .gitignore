@@ -147,6 +147,7 @@ plot/
 notebooks_/
 ckpt/
 .idea/
-.idea_xx/
 .vscode/
-.vscode_xx/
+log/
+tmp
+tmp_xx
