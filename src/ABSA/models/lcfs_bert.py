@@ -33,7 +33,6 @@ class PointwiseFeedForward(nn.Module):
         return output
 
 class SelfAttention(nn.Module):
-    # TODO: make sure this config works with GloVe
     def __init__(self, config, max_seq_len, device):
         super(SelfAttention, self).__init__()
         self.config = config

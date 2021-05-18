@@ -89,7 +89,6 @@ class SaeccModel(nn.Module):
     def _reset_params(self):
         initializer = torch.nn.init.xavier_normal_
         for child in self.children():
-            # print(child)
             if type(child) == BertModel:  # skip bert params
                 continue
             for p in child.parameters():
@@ -112,17 +111,6 @@ class CpcPipeline(nn.Module):
         self.device = device
         # global context
         sgcn_dims = [args.emb_dim]+ args.sgcn_dims + [args.feature_dim]
-
-        # TODO: from children printout: params not properly registered
-        # self.sgcn_convs = [
-        #     SGCNConv(
-        #         dim_in=d_in,
-        #         dim_out=d_out,
-        #         num_labels=len(DEPENDENCY_LABELS),
-        #         gating=args.sgcn_gating
-        #     )
-        #     for d_in, d_out in zip(sgcn_dims[:-1], sgcn_dims[1:])
-        # ]
 
         self.sgcn_convs = nn.ModuleList([
             SGCNConv(
@@ -154,7 +142,6 @@ class CpcPipeline(nn.Module):
         # depgraph.edge_index: Tensor (on device)
         # depgraph.edge_attr: Tensor (on device)
 
-        # TODO: verify this part w/ Yilong
         for conv in self.sgcn_convs:
             depgraph.x = conv(
                 x=depgraph.x,

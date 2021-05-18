@@ -1,9 +1,5 @@
-# NOTE:
-#   1. change input_emb and emb_dim simultaneously!
-#   2. feature_dim: 60, 72, 84, ...
-#   3. num of optimizer
-python src/train_fixed.py \
-    --experimentID CPCwithFixedABSA \
+python src/train.py \
+    --experimentID ExampleID\
     --task train \
     --gpu_id 0 \
     --use_lr_scheduler \
@@ -16,7 +12,7 @@ python src/train_fixed.py \
     --dropout 0.2 \
     --num_ep 10 \
     --batch_size 16 \
-    --batch_ratio 1:0 \
+    --batch_ratio 1:1 \
     --eval_per_ep 1 \
     --eval_after_epnum 1 \
     --sgcn_dims 256 \
@@ -25,10 +21,10 @@ python src/train_fixed.py \
     --log_batch_num 100000 \
     --absa_log_batch_num 1000000 \
     --loss_weights 2 4 1 \
-    --scheduler_stepsize 3
-    # --save_model \
-    # --save_per_ep 9 \
-    # --save_after_epnum 8
-    # --dom_adapt \
+    --scheduler_stepsize 3 \
+    --save_model \
+    --save_per_ep 9 \
+    --save_after_epnum 8 \
+    --dom_adapt
     # --data_augmentation \
     # --up_sample \

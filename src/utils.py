@@ -1,6 +1,5 @@
 import os
 import pickle
-# from torch.nn import ConstantPad2d
 
 import torch
 import torch.nn as nn

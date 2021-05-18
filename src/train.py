@@ -241,13 +241,12 @@ def train(args, device, model, dataloader):
         print(f"{get_time()} [Perf][Epoch] {msg}")
 
         # compute and log training performance after each epoch
-        # TODO: uncomment this!
-        # metric_dict = compute_metrics(predictions, groundtruths)
-        # perf_msg = compose_metric_perf_msg(metric_dict)
-        # if args.use_wandb:
-        #     wandb.log({'train F1-' + str(k): v for k, v in metric_dict.items()})
-        # logging.info(f"[Perf][Train][CPC][Epoch]{ep} " + perf_msg)
-        # print(f"{get_time()} [Perf][Train][CPC][Epoch]{ep} " + perf_msg)
+        metric_dict = compute_metrics(predictions, groundtruths)
+        perf_msg = compose_metric_perf_msg(metric_dict)
+        if args.use_wandb:
+            wandb.log({'train F1-' + str(k): v for k, v in metric_dict.items()})
+        logging.info(f"[Perf][Train][CPC][Epoch]{ep} " + perf_msg)
+        print(f"{get_time()} [Perf][Train][CPC][Epoch]{ep} " + perf_msg)
 
         # averaging loss for epoch
         if args.use_lr_scheduler:
@@ -257,7 +256,6 @@ def train(args, device, model, dataloader):
 
         # run validation
         if not ep % args.eval_per_ep and ep >= args.eval_after_epnum - 1:
-            # TODO: uncomment this!
             metric_dict, perf_msg = evaluate(model, for_test=False,
                 data_iter=dataloader.get_batch_testval(False), 
                 restore_model_path=None, device=device)
@@ -324,7 +322,8 @@ def evaluate(model, data_iter, restore_model_path, device, for_test):
     return metric_dict, perf_msg
 
 def setup_wandb(args):
-    wandb.init(project='saecc', entity='louixp')
+    # Please don't use `wandb`
+    wandb.init(project='SAECON', entity='ANON')
     wandb.config.update(args)
     args.experimentID = wandb.run.name
 
@@ -332,7 +331,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     # environment config
-    parser.add_argument("--use_wandb", action="store_true", default=False)
+    parser.add_argument("--use_wandb", action="store_true", default=False,
+        help="Please keep this option off")
     parser.add_argument("--experimentID", type=str, help="The ID of the experiments")
     parser.add_argument("--task", type=str, required=True, help="train/test?")
     parser.add_argument("--gpu_id", type=int, required=True)
@@ -463,17 +463,11 @@ if __name__ == "__main__":
     torch.manual_seed(args.random_seed)
     np.random.seed(args.random_seed)
 
-    # dataloader = DataLoader(args)
+    dataloader = DataLoader(args)
 
     # move model to cuda device
     model = SaeccModel(args, device)
     model = model.to(device)
-
-    for name, param in model.named_parameters():
-        if param.requires_grad:
-            print(name, param.data.size())
-
-    sys.exit()
 
     if args.task == "train":
         train(args, device, model, dataloader)

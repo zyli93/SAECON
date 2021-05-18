@@ -3,7 +3,7 @@
 # author: songyouwei <youwei0314@gmail.com>
 # Copyright (C) 2018. All Rights Reserved.
 
-# Heavily modified by Zihan Liu and Zeyu Li
+# Heavily modified by Anon and Anon
 
 import os
 import pickle
