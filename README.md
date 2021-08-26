@@ -1,6 +1,26 @@
 # SAECON
 Sentiment Analysis Enhanced COmparative Network
 
+## Reference
+
+The paper associated with this GitHub repo has been accepted by EMNLP'21 Findings. Please cite our paper via the following BibTex.
+```
+@inproceedings{saecon,
+  author    = {Zeyu Li and
+               Yilong Qin and
+               Zihan Liu and
+               Wei Wang},
+  title     = {Powering Comparative Classification with Sentiment Analysis via Domain Adaptive Knowledge Transfer},
+  booktitle = {Proceedings of the 2021 Conference on Empirical Methods in Natural
+               Language Processing: Findings, {EMNLP} 2021, 7-11 November 2021, 
+               Online and in the Barceló Bávaro Convention Centre, Punta Cana, Dominican Republic},
+  series    = {Findings of {ACL}},
+  volume    = {{EMNLP} 2021},
+  publisher = {Association for Computational Linguistics},
+  year      = {2021},
+}
+```
+
 
 ## Prerequisite
 
